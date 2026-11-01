@@ -1,24 +1,24 @@
+/* Synthwave theme: deep navy base, pink / purple / light blue accents */
 :root {
-  --bg: #f6f5f2; --surface: #ffffff; --surface-2: #efede8; --border: #e2dfd8;
-  --text: #1d1c1a; --muted: #6f6b63; --accent: #c2410c; --accent-ink: #ffffff;
-  --accent-soft: #fde7da; --ok: #15803d; --ok-soft: #dcfce7; --bad: #b91c1c; --bad-soft: #fee2e2;
-  --info: #1d4ed8; --info-soft: #dbeafe; --warn: #a16207; --warn-soft: #fef3c7;
-  --radius: 12px; --shadow: 0 1px 2px rgb(0 0 0 / .05), 0 4px 16px rgb(0 0 0 / .04);
-  color-scheme: light;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #131211; --surface: #1c1b19; --surface-2: #262421; --border: #33302c;
-    --text: #ecebe8; --muted: #a29d94; --accent: #f97316; --accent-ink: #1a0d04;
-    --accent-soft: #3b2010; --ok: #4ade80; --ok-soft: #12301d; --bad: #f87171; --bad-soft: #3a1515;
-    --info: #93c5fd; --info-soft: #172a4a; --warn: #fcd34d; --warn-soft: #3a2e0c;
-    --shadow: none; color-scheme: dark;
-  }
+  --bg: #0b0a1f; --surface: #141236; --surface-2: #1e1a4a; --border: #2c2766;
+  --text: #eeeaff; --muted: #9a94c8;
+  --pink: #ff4fd8; --purple: #9d5cff; --cyan: #4fd8ff;
+  --accent: var(--pink); --accent-ink: #ffffff; --accent-soft: rgb(255 79 216 / .14);
+  --grad: linear-gradient(135deg, #ff4fd8 0%, #9d5cff 55%, #4fd8ff 100%);
+  --ok: #5cffc8; --ok-soft: rgb(92 255 200 / .12); --bad: #ff5c8a; --bad-soft: rgb(255 92 138 / .14);
+  --info: var(--cyan); --info-soft: rgb(79 216 255 / .13); --warn: #ffd166; --warn-soft: rgb(255 209 102 / .13);
+  --radius: 12px; --shadow: 0 0 0 1px rgb(157 92 255 / .06), 0 8px 30px rgb(0 0 0 / .35);
+  color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {
-  margin: 0; background: var(--bg); color: var(--text);
+  margin: 0; color: var(--text); min-height: 100vh;
+  background:
+    radial-gradient(1000px 500px at 85% -10%, rgb(157 92 255 / .18), transparent 60%),
+    radial-gradient(800px 400px at -10% 110%, rgb(255 79 216 / .10), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
   font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 body.has-player { padding-bottom: 96px; }
@@ -266,3 +266,30 @@ body.has-player .toast { bottom: 100px; }
   .topbar nav a { padding: .35rem .5rem; font-size: .9rem; }
   .brand span, .brand { font-size: 1rem; }
 }
+
+/* ---------- synthwave accents ---------- */
+.topbar { background: rgb(20 18 54 / .82); backdrop-filter: blur(10px); border-bottom-color: rgb(157 92 255 / .35);
+  box-shadow: 0 1px 0 rgb(255 79 216 / .15); }
+.brand { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.topbar nav a.active { background: rgb(157 92 255 / .18); color: #fff; }
+.badge { background: var(--grad); color: #fff; }
+.btn.primary { background: var(--grad); border-color: transparent; color: #fff; box-shadow: 0 0 18px rgb(255 79 216 / .35); }
+.btn.primary:hover { filter: brightness(1.12); box-shadow: 0 0 26px rgb(255 79 216 / .5); }
+.btn:hover { border-color: var(--purple); }
+.tab.active { background: rgb(157 92 255 / .2); color: #d9c4ff; }
+.tile:hover { border-color: var(--pink); box-shadow: 0 0 0 1px var(--pink), 0 0 28px rgb(255 79 216 / .3); }
+.hero-cover, .tile .cover { box-shadow: inset 0 0 0 1px rgb(255 255 255 / .06); }
+.hero { border-color: rgb(157 92 255 / .35); }
+.hero h1, .page-head h1 { text-shadow: 0 0 22px rgb(157 92 255 / .55); }
+.progress .bar { background: var(--grad); box-shadow: 0 0 10px rgb(79 216 255 / .5); }
+.status-new { background: rgb(157 92 255 / .18); color: #c9a8ff; }
+.num { color: var(--cyan); opacity: .8; }
+.ep-title:hover { color: var(--cyan); }
+input:focus, select:focus, button:focus-visible { outline-color: var(--cyan); }
+input[type=checkbox] { accent-color: var(--pink); }
+.dialog { border-color: rgb(157 92 255 / .45); box-shadow: 0 0 0 1px rgb(255 79 216 / .15), 0 20px 60px rgb(0 0 0 / .6); }
+.dialog::backdrop { background: rgb(5 4 20 / .7); backdrop-filter: blur(3px); }
+.player { border-color: rgb(157 92 255 / .45); box-shadow: 0 0 30px rgb(157 92 255 / .3); }
+.toast { background: var(--surface-2); color: var(--text); border: 1px solid var(--purple); }
+.flash { border: 1px solid currentColor; }
+.icon.on { background: rgb(255 79 216 / .18); }
