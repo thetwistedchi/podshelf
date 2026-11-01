@@ -1,0 +1,17 @@
+# TrueNAS SCALE: Apps → Discover Apps → ⋮ → Install via YAML, name "podshelf"
+# Replace YOUR_GITHUB_USER with your GitHub user name (lowercase).
+services:
+  podshelf:
+    image: ghcr.io/YOUR_GITHUB_USER/podshelf:latest
+    container_name: podshelf
+    restart: unless-stopped
+    user: "568:568"
+    ports:
+      - "30080:8080"
+    environment:
+      TZ: Europe/Berlin
+      ADMIN_USER: admin
+      ADMIN_PASSWORD: change-me      # leave empty to disable the login
+    volumes:
+      - /mnt/Seagate/Daten/Config/Podshelf:/data
+      - /mnt/Seagate/Daten/Podcasts:/podcasts

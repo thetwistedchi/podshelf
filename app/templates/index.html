@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Podcasts</h1>
+    <p class="muted">{{ podcasts|length }} subscribed</p>
+  </div>
+  <div class="actions">
+    {% if podcasts %}
+    <form method="post" action="/podcasts/refresh-all"><button class="btn">Check all feeds</button></form>
+    {% endif %}
+    <button class="btn primary" onclick="Podshelf.open('add-dialog')">+ Add podcast</button>
+  </div>
+</div>
+
+{% if not podcasts %}
+<div class="empty card">
+  <h2>No podcasts yet</h2>
+  <p>Search the directory, paste a feed URL, or import an OPML file / your Audiobookshelf library in <a href="/settings">Settings</a>.</p>
+  <button class="btn primary" onclick="Podshelf.open('add-dialog')">+ Add your first podcast</button>
+</div>
+{% else %}
+<div class="grid">
+  {% for p in podcasts %}
+  <a class="tile {% if not p.active %}inactive{% endif %}" href="/podcasts/{{ p.id }}" data-podcast="{{ p.id }}">
+    <div class="cover-wrap">
+      <img class="cover" src="/podcasts/{{ p.id }}/cover" alt="" loading="lazy">
+      {% if p.id in refreshing %}<span class="chip info corner refreshing">Checking…</span>
+      {% elif p.last_error %}<span class="chip bad corner" title="{{ p.last_error }}">Feed error</span>
+      {% elif p.failed %}<span class="chip bad corner">{{ p.failed }} failed</span>
+      {% elif p.pending %}<span class="chip info corner">{{ p.pending }} queued</span>{% endif %}
+    </div>
+    <div class="tile-body">
+      <strong class="clamp2">{{ p.title }}</strong>
+      <span class="muted small">{{ p.author or '' }}</span>
+      <span class="small tile-meta">
+        <span title="Downloaded episodes">⬇ {{ p.done }}{% if p.keep_count %}/{{ p.keep_count }}{% else %} · keep all{% endif %}</span>
+        {% if p.latest %}<span title="Latest episode">{{ p.latest|date }}</span>{% endif %}
+      </span>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<dialog id="add-dialog" class="dialog wide">
+  <div class="dialog-head">
+    <h2>Add podcast</h2>
+    <button class="x" onclick="this.closest('dialog').close()" aria-label="Close">×</button>
+  </div>
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-tab="tab-search">Search</button>
+    <button class="tab" data-tab="tab-url">Feed URL</button>
+  </div>
+
+  <section id="tab-search" class="tab-panel">
+    <form id="search-form" class="row">
+      <input id="search-q" type="search" placeholder="Podcast name, e.g. Kein Mucks" autocomplete="off">
+      <button class="btn primary">Search</button>
+    </form>
+    <div id="search-results" class="results"><p class="muted small">Results come from the Apple Podcasts directory.</p></div>
+  </section>
+
+  <section id="tab-url" class="tab-panel" hidden>
+    <form method="post" action="/podcasts/add" class="stack" id="add-form">
+      <label>RSS feed URL <input name="feed_url" id="feed-url" type="url" placeholder="https://…" required></label>
+      <div class="cols4">
+        <label>Keep episodes <input name="keep" type="number" min="0" value="{{ defaults.default_keep }}"><small>0 = keep all</small></label>
+        <label>Download now <input name="initial" type="number" min="0" value="{{ defaults.default_initial }}"><small>newest N, 0 = all</small></label>
+        <label>Check every <input name="check_hours" type="number" min="1" value="{{ defaults.default_check_hours }}"><small>hours</small></label>
+        <label>Max new per check <input name="max_new" type="number" min="0" value="{{ defaults.default_max_new }}"><small>0 = no limit</small></label>
+      </div>
+      <button class="btn primary">Add podcast</button>
+    </form>
+  </section>
+</dialog>
+{% endblock %}

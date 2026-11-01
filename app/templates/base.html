@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Podshelf{% endblock %}</title>
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css?v=1">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/"><img src="/static/icon.svg" alt=""> Podshelf</a>
+  <nav>
+    <a href="/" class="{{ 'active' if request.url.path == '/' or request.url.path.startswith('/podcasts') }}">Podcasts</a>
+    <a href="/queue" class="{{ 'active' if request.url.path.startswith('/queue') }}">Downloads
+      <span class="badge" id="nav-queue" {% if not (counts.queued + counts.downloading) %}hidden{% endif %}>{{ counts.queued + counts.downloading }}</span>
+      <span class="badge bad" id="nav-failed" {% if not counts.failed %}hidden{% endif %}>{{ counts.failed }}</span>
+    </a>
+    <a href="/settings" class="{{ 'active' if request.url.path.startswith('/settings') }}">Settings</a>
+    {% if login_enabled %}<a href="/logout" class="muted">Log out</a>{% endif %}
+  </nav>
+</header>
+
+<div class="flashes">
+{% for kind, msg in flashes %}
+  <div class="flash {{ kind }}">{{ msg }}<button class="x" onclick="this.parentElement.remove()" aria-label="Close">×</button></div>
+{% endfor %}
+</div>
+
+<main>{% block content %}{% endblock %}</main>
+
+<div id="player" class="player" hidden>
+  <img id="player-cover" alt="">
+  <div class="player-meta"><strong id="player-title"></strong><span id="player-podcast"></span></div>
+  <audio id="player-audio" controls preload="none"></audio>
+  <button class="x" onclick="Podshelf.closePlayer()" aria-label="Close player">×</button>
+</div>
+<div id="toast" class="toast" hidden></div>
+<script src="/static/app.js?v=1"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

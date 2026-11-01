@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}{{ p.title }} · Podshelf{% endblock %}
+{% block content %}
+<a class="backlink" href="/">← All podcasts</a>
+
+<section class="hero card" data-podcast="{{ p.id }}">
+  <img class="hero-cover" src="/podcasts/{{ p.id }}/cover" alt="">
+  <div class="hero-body">
+    <h1>{{ p.title }}</h1>
+    {% if p.author %}<p class="muted">{{ p.author }}</p>{% endif %}
+    <div class="chips">
+      <span class="chip">{{ stats.get('done', 0) }} downloaded</span>
+      <span class="chip">{{ stats.values()|sum }} in feed</span>
+      <span class="chip">{% if p.keep_count %}Keeps newest {{ p.keep_count }}{% else %}Keeps all{% endif %}</span>
+      <span class="chip">Checks every {{ p.check_hours }} h</span>
+      {% if disk %}<span class="chip">{{ disk|size }}</span>{% endif %}
+      {% if not p.auto_download %}<span class="chip warn">Auto download off</span>{% endif %}
+      {% if not p.active %}<span class="chip warn">Paused</span>{% endif %}
+      {% if refreshing %}<span class="chip info refreshing">Checking feed…</span>{% endif %}
+    </div>
+    <p class="small muted">
+      Last checked: {{ p.last_checked|date(true) or 'never' }} · Folder: <code>{{ p.folder or '…' }}</code>
+    </p>
+    {% if p.last_error %}<div class="flash error">Feed error: {{ p.last_error }}</div>{% endif %}
+    <div class="actions">
+      <form method="post" action="/podcasts/{{ p.id }}/refresh"><button class="btn primary">Check now</button></form>
+      <form method="post" action="/podcasts/{{ p.id }}/latest" class="inline-form">
+        <button class="btn">Download latest</button>
+        <input name="n" type="number" min="1" max="500" value="{{ p.keep_count or 10 }}" aria-label="Number of episodes">
+      </form>
+      <button class="btn" onclick="Podshelf.open('settings-dialog')">Settings</button>
+      <form method="post" action="/podcasts/{{ p.id }}/retag"><button class="btn" title="Rewrite tags, track numbers and cover art for all downloaded files">Fix tags &amp; covers</button></form>
+      <button class="btn danger-ghost" onclick="Podshelf.open('delete-dialog')">Remove</button>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <div class="browser-head">
+    <div class="tabs">
+      {% for key, label in [('all','All'),('downloaded','Downloaded'),('pending','Queued'),('failed','Failed'),('available','Not downloaded')] %}
+      <a class="tab {% if status == key %}active{% endif %}" href="?status={{ key }}&q={{ q|urlencode }}&order={{ order }}">{{ label }}</a>
+      {% endfor %}
+    </div>
+    <form class="row" method="get">
+      <input type="hidden" name="status" value="{{ status }}">
+      <input type="search" name="q" value="{{ q }}" placeholder="Search episodes">
+      <select name="order" onchange="this.form.submit()">
+        <option value="desc" {% if order == 'desc' %}selected{% endif %}>Newest first</option>
+        <option value="asc" {% if order == 'asc' %}selected{% endif %}>Oldest first</option>
+      </select>
+    </form>
+  </div>
+
+  {% if not episodes %}
+  <p class="empty-row muted">
+    {% if refreshing %}Loading episodes from the feed…{% elif q %}No episodes match “{{ q }}”.{% else %}Nothing here.{% endif %}
+  </p>
+  {% else %}
+  <ul class="episodes">
+    {% for e in episodes %}
+    <li class="episode" id="ep-{{ e.id }}" data-id="{{ e.id }}" data-status="{{ e.status }}"
+        data-title="{{ e.title }}" data-podcast="{{ p.title }}" data-cover="/podcasts/{{ p.id }}/cover">
+      <span class="num" title="Chronological episode number (track number in Plex/Emby)">#{{ nums.get(e.id) }}</span>
+      <div class="ep-main">
+        <button class="ep-title linklike" onclick="Podshelf.toggleDesc({{ e.id }})">{{ e.title }}</button>
+        <span class="small muted">
+          {{ e.pub_date|date }}{% if e.duration %} · {{ e.duration|duration }}{% endif %}{% if e.file_size %} · {{ e.file_size|size }}{% endif %}
+          {% if e.pinned %} · <span title="Kept regardless of retention">📌 kept</span>{% endif %}
+        </span>
+        {% if e.error and e.status in ('failed','queued') %}<span class="small err">{{ e.error }}{% if e.status == 'queued' and e.attempts %} (retry {{ e.attempts }}){% endif %}</span>{% endif %}
+        <div class="progress" hidden><div class="bar"></div><span class="small muted ptext"></span></div>
+        <div class="desc" hidden></div>
+      </div>
+      <span class="chip status-{{ e.status }}">{{ {'done':'Downloaded','queued':'Queued','downloading':'Downloading','failed':'Failed','deleted':'Removed','skipped':'Not downloaded','new':'New'}[e.status] }}</span>
+      <div class="ep-actions">
+        <button class="icon" title="Play" onclick="Podshelf.play({{ e.id }})">▶</button>
+        {% if e.status in ('new','skipped','deleted','failed') %}
+          <button class="icon" title="Download" onclick="Podshelf.act({{ e.id }}, 'download')">⬇</button>
+        {% elif e.status in ('queued','downloading') %}
+          <button class="icon" title="Cancel" onclick="Podshelf.act({{ e.id }}, 'cancel')">✕</button>
+        {% elif e.status == 'done' %}
+          <button class="icon pin {% if e.pinned %}on{% endif %}" title="{{ 'Unpin (allow cleanup)' if e.pinned else 'Keep forever (ignore retention)' }}" onclick="Podshelf.act({{ e.id }}, 'pin')">📌</button>
+          <button class="icon" title="Delete file" onclick="Podshelf.act({{ e.id }}, 'delete', 'Delete this file?')">🗑</button>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% if pages > 1 %}
+  <nav class="pager">
+    {% if page > 1 %}<a class="btn" href="?status={{ status }}&q={{ q|urlencode }}&order={{ order }}&page={{ page - 1 }}">← Newer</a>{% endif %}
+    <span class="muted small">Page {{ page }} of {{ pages }} · {{ total }} episodes</span>
+    {% if page < pages %}<a class="btn" href="?status={{ status }}&q={{ q|urlencode }}&order={{ order }}&page={{ page + 1 }}">Older →</a>{% endif %}
+  </nav>
+  {% endif %}
+  {% endif %}
+</section>
+
+<dialog id="settings-dialog" class="dialog">
+  <div class="dialog-head"><h2>Podcast settings</h2><button class="x" onclick="this.closest('dialog').close()" aria-label="Close">×</button></div>
+  <form method="post" action="/podcasts/{{ p.id }}/settings" class="stack">
+    <div class="cols2">
+      <label>Keep episodes <input name="keep_count" type="number" min="0" value="{{ p.keep_count }}"><small>0 = keep all. Older files are deleted after each download. Pinned episodes are never deleted.</small></label>
+      <label>Check every (hours) <input name="check_hours" type="number" min="1" value="{{ p.check_hours }}"></label>
+      <label>Max new per check <input name="max_new" type="number" min="0" value="{{ p.max_new }}"><small>0 = no limit</small></label>
+      <label>Folder name <input name="folder" value="{{ p.folder or '' }}"><small>Renaming moves existing files.</small></label>
+    </div>
+    <label>Feed URL <input name="feed_url" type="url" value="{{ p.feed_url }}"></label>
+    <label class="check"><input type="checkbox" name="auto_download" {% if p.auto_download %}checked{% endif %}> Download new episodes automatically</label>
+    <label class="check"><input type="checkbox" name="active" {% if p.active %}checked{% endif %}> Check feed on schedule</label>
+    <div class="actions end"><button type="button" class="btn" onclick="this.closest('dialog').close()">Cancel</button><button class="btn primary">Save</button></div>
+  </form>
+</dialog>
+
+<dialog id="delete-dialog" class="dialog">
+  <div class="dialog-head"><h2>Remove “{{ p.title }}”?</h2><button class="x" onclick="this.closest('dialog').close()" aria-label="Close">×</button></div>
+  <form method="post" action="/podcasts/{{ p.id }}/delete" class="stack">
+    <label class="check"><input type="checkbox" name="delete_files"> Also delete the {{ stats.get('done', 0) }} downloaded files</label>
+    <div class="actions end"><button type="button" class="btn" onclick="this.closest('dialog').close()">Cancel</button><button class="btn danger">Remove</button></div>
+  </form>
+</dialog>
+{% endblock %}

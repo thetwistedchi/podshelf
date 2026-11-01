@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Log in · Podshelf</title>
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css?v=1">
+</head>
+<body class="login-page">
+  <form class="login card" method="post" action="/login">
+    <div class="brand big"><img src="/static/icon.svg" alt=""> Podshelf</div>
+    {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+    <label>Username <input name="username" autocomplete="username" required autofocus></label>
+    <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+    <button class="btn primary wide" type="submit">Log in</button>
+  </form>
+</body>
+</html>

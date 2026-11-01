@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Downloads · Podshelf{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Downloads</h1><p class="muted">{{ counts.downloading }} active · {{ counts.queued }} queued · {{ counts.failed }} failed</p></div>
+  <div class="actions">
+    {% if failed %}
+    <form method="post" action="/queue/retry-failed"><button class="btn primary">Retry failed</button></form>
+    <form method="post" action="/queue/clear-failed"><button class="btn">Dismiss failed</button></form>
+    {% endif %}
+    {% if queued %}<form method="post" action="/queue/clear"><button class="btn danger-ghost">Clear queue</button></form>{% endif %}
+  </div>
+</div>
+
+<section class="card">
+  <h2>Active</h2>
+  <ul class="qlist" id="active-list">
+    {% for e in active %}
+    <li data-id="{{ e.id }}"><div><strong>{{ e.title }}</strong><span class="small muted">{{ e.ptitle }}</span>
+      <div class="progress"><div class="bar"></div><span class="small muted ptext">starting…</span></div></div>
+      <button class="icon" title="Cancel" onclick="Podshelf.act({{ e.id }}, 'cancel', null, true)">✕</button></li>
+    {% else %}
+    <li class="muted empty-row">Nothing downloading right now.</li>
+    {% endfor %}
+  </ul>
+</section>
+
+{% if failed %}
+<section class="card">
+  <h2>Failed <span class="muted small">gave up after several attempts</span></h2>
+  <ul class="qlist">
+    {% for e in failed %}
+    <li><div><strong>{{ e.title }}</strong><span class="small muted"><a href="/podcasts/{{ e.podcast_id }}">{{ e.ptitle }}</a> · {{ e.pub_date|date }}</span>
+      <span class="small err">{{ e.error }}</span></div>
+      <button class="icon" title="Retry" onclick="Podshelf.act({{ e.id }}, 'download', null, true)">↻</button></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Queued</h2>
+  <ul class="qlist">
+    {% for e in queued %}
+    <li><div><strong>{{ e.title }}</strong><span class="small muted"><a href="/podcasts/{{ e.podcast_id }}">{{ e.ptitle }}</a> · {{ e.pub_date|date }}
+      {% if e.next_try %} · retry {{ e.attempts }} at {{ e.next_try|date(true) }}{% endif %}</span>
+      {% if e.error %}<span class="small err">{{ e.error }}</span>{% endif %}</div>
+      <button class="icon" title="Remove from queue" onclick="Podshelf.act({{ e.id }}, 'cancel', null, true)">✕</button></li>
+    {% else %}
+    <li class="muted empty-row">Queue is empty.</li>
+    {% endfor %}
+  </ul>
+</section>
+
+<section class="card">
+  <h2>Recently downloaded</h2>
+  <ul class="qlist">
+    {% for e in recent %}
+    <li><div><strong>{{ e.title }}</strong><span class="small muted"><a href="/podcasts/{{ e.podcast_id }}">{{ e.ptitle }}</a> · {{ e.downloaded_at|date(true) }} · {{ e.file_size|size }}</span></div></li>
+    {% else %}
+    <li class="muted empty-row">No downloads yet.</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}
+{% block scripts %}<script>Podshelf.watchQueuePage();</script>{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Settings · Podshelf{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Settings</h1><p class="muted">Files are saved to <code>{{ podcast_dir }}</code></p></div></div>
+
+<form method="post" action="/settings" class="stack">
+  <section class="card">
+    <h2>File naming</h2>
+    <div class="cols2">
+      <label>Folder per podcast <input name="podcast_format" id="podcast_format" value="{{ s.podcast_format }}">
+        <small>Placeholders: <code>{podcast}</code> <code>{author}</code></small></label>
+      <label>Episode file name <input name="episode_format" id="episode_format" value="{{ s.episode_format }}">
+        <small><code>{date}</code> <code>{title}</code> <code>{num}</code> <code>{year}</code> <code>{month}</code> <code>{day}</code> <code>{podcast}</code> <code>{author}</code></small></label>
+    </div>
+    <div class="preview">Preview: <code id="naming-preview">{{ sample }}</code></div>
+    <p class="small muted">Applies to new downloads. <code>{date} - {title}</code> keeps files sorted by date in any file browser. Plex and Emby sort by the track number tag, which is always the chronological episode number.</p>
+  </section>
+
+  <section class="card">
+    <h2>Defaults for new podcasts</h2>
+    <div class="cols4">
+      <label>Keep episodes <input name="default_keep" type="number" min="0" value="{{ s.default_keep }}"><small>0 = keep all</small></label>
+      <label>Download on subscribe <input name="default_initial" type="number" min="0" value="{{ s.default_initial }}"><small>newest N, 0 = all</small></label>
+      <label>Check every (hours) <input name="default_check_hours" type="number" min="1" value="{{ s.default_check_hours }}"></label>
+      <label>Max new per check <input name="default_max_new" type="number" min="0" value="{{ s.default_max_new }}"><small>0 = no limit</small></label>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Downloads &amp; tags</h2>
+    <div class="cols4">
+      <label>Parallel downloads <input name="parallel_downloads" type="number" min="1" max="8" value="{{ s.parallel_downloads }}"></label>
+    </div>
+    <label class="check"><input type="checkbox" name="strip_date_tag" {% if s.strip_date_tag == '1' %}checked{% endif %}> Remove year/date tags <small class="muted">(prevents Plex from splitting one podcast into several albums)</small></label>
+    <label class="check"><input type="checkbox" name="force_podcast_cover" {% if s.force_podcast_cover == '1' %}checked{% endif %}> Always embed the podcast cover <small class="muted">(instead of per-episode artwork)</small></label>
+  </section>
+
+  <div class="actions end"><button class="btn primary">Save settings</button></div>
+</form>
+
+<section class="card">
+  <h2>OPML</h2>
+  <div class="row wrap">
+    <form method="post" action="/opml/import" enctype="multipart/form-data" class="row">
+      <input type="file" name="file" accept=".opml,.xml,text/xml" required>
+      <button class="btn">Import OPML</button>
+    </form>
+    <a class="btn" href="/opml/export">Export OPML</a>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Import from Audiobookshelf</h2>
+  <p class="small muted">Copies every podcast from your Audiobookshelf podcast libraries including keep count, schedule and max new episodes. Files that already exist in the podcast folder are adopted (renamed and tagged) instead of downloaded again.</p>
+  <form method="post" action="/abs/import" class="cols2">
+    <label>Server URL <input name="abs_url" placeholder="http://192.168.178.100:30067/audiobookshelf" required></label>
+    <label>API key <input name="abs_key" type="password" required><small>ABS: Settings → API Keys (or Users → your user → API token)</small></label>
+    <div><button class="btn">Import</button></div>
+  </form>
+</section>
+{% endblock %}
+{% block scripts %}<script>Podshelf.namingPreview();</script>{% endblock %}
