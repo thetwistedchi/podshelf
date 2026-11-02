@@ -28,6 +28,10 @@
         <button class="btn">Download latest</button>
         <input name="n" type="number" min="1" max="500" value="{{ p.keep_count or 10 }}" aria-label="Number of episodes">
       </form>
+      <form method="post" action="/podcasts/{{ p.id }}/all"
+            onsubmit="return confirm('Download all {{ stats.values()|sum - stats.get('done', 0) }} remaining episodes? The podcast will be set to keep all episodes.')">
+        <button class="btn">Download all</button>
+      </form>
       <button class="btn" onclick="Podshelf.open('settings-dialog')">Settings</button>
       <form method="post" action="/podcasts/{{ p.id }}/retag"><button class="btn" title="Rewrite tags, track numbers and cover art for all downloaded files">Fix tags &amp; covers</button></form>
       <button class="btn danger-ghost" onclick="Podshelf.open('delete-dialog')">Remove</button>

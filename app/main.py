@@ -305,6 +305,19 @@ def download_latest(request: Request, pid: int, n: int = Form(10)):
     return back(f"/podcasts/{pid}")
 
 
+@app.post("/podcasts/{pid}/all")
+def download_all(request: Request, pid: int):
+    # downloading everything only makes sense if retention keeps everything
+    with db.tx() as c:
+        c.execute("UPDATE podcasts SET keep_count=0 WHERE id=?", (pid,))
+        n = c.execute("UPDATE episodes SET status='queued', attempts=0, next_try=NULL, error=NULL "
+                      "WHERE podcast_id=? AND status IN ('new','skipped','deleted','failed')",
+                      (pid,)).rowcount
+    feeds.wake_downloads.set()
+    flash(request, f"Queued {n} episodes. This podcast now keeps all episodes.")
+    return back(f"/podcasts/{pid}")
+
+
 @app.post("/podcasts/{pid}/retag")
 def retag(request: Request, pid: int):
     threading.Thread(target=downloader.retag_podcast, args=(pid,), daemon=True).start()
