@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Statistics · Podshelf{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Statistics</h1><p class="muted">{{ podcasts }} podcasts</p></div>
+  <div class="actions"><a class="btn {% if dupes %}primary{% endif %}" href="/duplicates">Duplicates{% if dupes %} ({{ dupes }}){% endif %}</a></div>
+</div>
+
+<div class="statgrid">
+  <div class="stat card"><span class="muted small">Disk used</span><strong>{{ (t.disk or 0)|size or '0 MB' }}</strong></div>
+  <div class="stat card"><span class="muted small">Downloaded episodes</span><strong>{{ t.downloaded or 0 }}</strong><span class="small muted">of {{ t.episodes or 0 }} in feeds</span></div>
+  <div class="stat card"><span class="muted small">Listening time on disk</span><strong>{{ t.secs|hours }}</strong></div>
+  <div class="stat card"><span class="muted small">Played</span><strong>{{ t.played or 0 }}</strong></div>
+  <div class="stat card"><span class="muted small">Ads removed</span><strong>{{ t.cut|hours }}</strong></div>
+  <div class="stat card"><span class="muted small">Filtered out</span><strong>{{ t.filtered or 0 }}</strong><span class="small muted">{{ t.failed or 0 }} failed downloads</span></div>
+</div>
+
+<section class="card">
+  <h2>Downloads per week</h2>
+  <div class="bars">
+    {% for label, n in weeks %}
+    <div class="bar-col" title="Week of {{ label }}: {{ n }} downloads">
+      <span class="small">{{ n or '' }}</span>
+      <div class="bar-fill" style="height: {{ (n / max_week * 100)|round(1) }}%"></div>
+      <span class="small muted">{{ label }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="card">
+  <h2>Per podcast</h2>
+  <table class="table">
+    <thead><tr><th>Podcast</th><th class="r">Downloaded</th><th class="r">Played</th><th class="r">Length</th><th class="r">Disk</th><th class="share">Share</th></tr></thead>
+    <tbody>
+    {% set maxd = (per|map(attribute='disk')|max) or 1 %}
+    {% for r in per %}
+      <tr><td><a href="/podcasts/{{ r.id }}">{{ r.title }}</a></td>
+        <td class="r">{{ r.downloaded or 0 }} / {{ r.total or 0 }}</td>
+        <td class="r">{{ r.played or 0 }}</td>
+        <td class="r">{{ r.secs|hours }}</td>
+        <td class="r">{{ r.disk|size or '0' }}</td>
+        <td class="share"><div class="meter"><div style="width: {{ (r.disk / maxd * 100)|round(1) }}%"></div></div></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

@@ -23,6 +23,24 @@ DEFAULT_SETTINGS = {
     "parallel_downloads": "3",
     "strip_date_tag": "1",
     "force_podcast_cover": "0",
+    # download window (hours 0-23, empty = always) and bandwidth (KB/s, 0 = unlimited)
+    "window_start": "",
+    "window_end": "",
+    "bandwidth_kbps": "0",
+    # default ad chapter keywords (whole words, case-insensitive)
+    "ad_keywords": "werbung, anzeige, sponsor, sponsored, ad, ads, advertisement, promo, commercial",
+    # media server sync
+    "sync_minutes": "15",
+    "plex_url": "", "plex_token": "", "plex_library": "",
+    "emby_url": "", "emby_key": "", "emby_user": "", "emby_library": "",
 }
+
+# settings that are checkboxes in the UI
+BOOL_SETTINGS = {"strip_date_tag", "force_podcast_cover"}
+# settings that must be non-negative integers
+INT_SETTINGS = {"default_keep", "default_initial", "default_check_hours", "default_max_new",
+                "parallel_downloads", "bandwidth_kbps", "sync_minutes"}
+# settings never shown back in the UI
+SECRET_SETTINGS = {"plex_token", "emby_key"}
 
 MAX_WORKERS = 8

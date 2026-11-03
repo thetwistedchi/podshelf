@@ -11,7 +11,15 @@ Self-hosted podcast downloader built for Plex and Emby. It picks up the useful p
 - **Episode browser**: filters, search, sorting, descriptions, download, delete, pin, and an in-browser player.
 - **Add podcasts** by searching Apple Podcasts, pasting a feed URL, importing OPML, or **importing straight from Audiobookshelf** (keep count, schedule and max new are copied over). Files that are already in the folder are adopted (renamed and tagged) instead of downloaded again.
 - **Fix tags & covers** button to rewrite all files of a podcast.
-- Live naming preview, a login, light and dark mode, works on mobile.
+- **Played status**: mark episodes as played, "Unplayed" filter, unplayed counter per podcast. Synced both ways with **Plex and Emby**; optional "delete played episodes after X days".
+- **Download rules** per podcast: include/exclude title filters (plain words or `re:` regex), minimum/maximum length, keep for X days.
+- **Ad skipping**: cut X seconds from start/end and remove chapters named like ads (Werbung, Anzeige, Sponsor…), without re-encoding (ffmpeg).
+- **Chapters** from Podlove and Podcasting 2.0 feeds are embedded into mp3/m4a and shown in the episode browser (click to jump).
+- **Download window** and a global **bandwidth limit**.
+- **Premium feeds** with username/password (sent only to the feed's own server).
+- **Separate folders/albums** for seasons and bonus episodes, **tags/collections**, editable episode titles and numbers, display name per podcast.
+- **Statistics**, **duplicate finder** (new duplicates are skipped automatically), **backup and restore** of the whole database.
+- Synthwave theme, login, works on mobile.
 
 ## Folder layout
 

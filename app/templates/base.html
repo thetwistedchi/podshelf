@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Podshelf{% endblock %}</title>
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/static/style.css?v=2">
+  <link rel="stylesheet" href="/static/style.css?v=3">
 </head>
 <body>
 <header class="topbar">
@@ -16,6 +16,7 @@
       <span class="badge" id="nav-queue" {% if not (counts.queued + counts.downloading) %}hidden{% endif %}>{{ counts.queued + counts.downloading }}</span>
       <span class="badge bad" id="nav-failed" {% if not counts.failed %}hidden{% endif %}>{{ counts.failed }}</span>
     </a>
+    <a href="/stats" class="{{ 'active' if request.url.path.startswith('/stats') or request.url.path.startswith('/duplicates') }}">Stats</a>
     <a href="/settings" class="{{ 'active' if request.url.path.startswith('/settings') }}">Settings</a>
     {% if login_enabled %}<a href="/logout" class="muted">Log out</a>{% endif %}
   </nav>
@@ -36,7 +37,7 @@
   <button class="x" onclick="Podshelf.closePlayer()" aria-label="Close player">×</button>
 </div>
 <div id="toast" class="toast" hidden></div>
-<script src="/static/app.js?v=1"></script>
+<script src="/static/app.js?v=2"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -3,7 +3,7 @@
 <div class="page-head">
   <div>
     <h1>Podcasts</h1>
-    <p class="muted">{{ podcasts|length }} subscribed</p>
+    <p class="muted">{{ podcasts|length }} {% if tag %}tagged #{{ tag }}{% else %}subscribed{% endif %}</p>
   </div>
   <div class="actions">
     {% if podcasts %}
@@ -12,6 +12,13 @@
     <button class="btn primary" onclick="Podshelf.open('add-dialog')">+ Add podcast</button>
   </div>
 </div>
+
+{% if all_tags %}
+<div class="tagbar">
+  <a class="chip tag {% if not tag %}active{% endif %}" href="/">All</a>
+  {% for t in all_tags %}<a class="chip tag {% if t == tag %}active{% endif %}" href="/?tag={{ t|urlencode }}">#{{ t }}</a>{% endfor %}
+</div>
+{% endif %}
 
 {% if not podcasts %}
 <div class="empty card">
@@ -29,9 +36,10 @@
       {% elif p.last_error %}<span class="chip bad corner" title="{{ p.last_error }}">Feed error</span>
       {% elif p.failed %}<span class="chip bad corner">{{ p.failed }} failed</span>
       {% elif p.pending %}<span class="chip info corner">{{ p.pending }} queued</span>{% endif %}
+      {% if p.unplayed %}<span class="unplayed-badge" title="Unplayed episodes">{{ p.unplayed }}</span>{% endif %}
     </div>
     <div class="tile-body">
-      <strong class="clamp2">{{ p.title }}</strong>
+      <strong class="clamp2">{{ ptitle(p) }}</strong>
       <span class="muted small">{{ p.author or '' }}</span>
       <span class="small tile-meta">
         <span title="Downloaded episodes">⬇ {{ p.done }}{% if p.keep_count %}/{{ p.keep_count }}{% else %} · keep all{% endif %}</span>
@@ -70,6 +78,13 @@
         <label>Check every <input name="check_hours" type="number" min="1" value="{{ defaults.default_check_hours }}"><small>hours</small></label>
         <label>Max new per check <input name="max_new" type="number" min="0" value="{{ defaults.default_max_new }}"><small>0 = no limit</small></label>
       </div>
+      <details class="premium">
+        <summary class="small">Premium feed with username and password</summary>
+        <div class="cols2">
+          <label>Username <input name="auth_user" autocomplete="off"></label>
+          <label>Password <input name="auth_pass" type="password" autocomplete="new-password"></label>
+        </div>
+      </details>
       <button class="btn primary">Add podcast</button>
     </form>
   </section>

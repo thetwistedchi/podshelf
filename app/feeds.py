@@ -2,15 +2,17 @@ import calendar
 import hashlib
 import logging
 import os
+import re
 import threading
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 from xml.sax.saxutils import escape, quoteattr
 
 import feedparser
 import httpx
 
-from . import config, db, naming
+from . import config, db, naming, postprocess
 
 log = logging.getLogger("podshelf.feeds")
 _refresh_locks: dict[int, threading.Lock] = {}
@@ -18,12 +20,29 @@ _locks_guard = threading.Lock()
 wake_downloads = threading.Event()
 
 
-def http_client(timeout=None) -> httpx.Client:
+def http_client(timeout=None, auth=None) -> httpx.Client:
     return httpx.Client(
         follow_redirects=True,
         timeout=httpx.Timeout(timeout or config.HTTP_TIMEOUT, connect=20),
         headers={"User-Agent": config.USER_AGENT},
+        auth=auth,
     )
+
+
+def podcast_auth(p):
+    """HTTP basic auth for premium feeds, or None."""
+    if p and p["auth_user"]:
+        return httpx.BasicAuth(p["auth_user"], p["auth_pass"] or "")
+    return None
+
+
+def same_host(a: str, b: str) -> bool:
+    return urlparse(a).hostname == urlparse(b).hostname
+
+
+def ptitle(p) -> str:
+    """Podcast title as shown and tagged (user override wins)."""
+    return (p["title_override"] or p["title"] or "").strip()
 
 
 def now_iso() -> str:
@@ -61,8 +80,50 @@ def _image(obj):
     return None
 
 
+NS_PSC = "{http://podlove.org/simple-chapters}"
+NS_P20 = "{https://podcastindex.org/namespace/1.0}"
+
+
+def _raw_chapters(content: bytes) -> dict:
+    """{guid or enclosure url: {"chapters": [...], "url": str}} straight from the XML,
+    because feedparser does not expose Podlove / Podcasting 2.0 chapters reliably."""
+    out = {}
+    try:
+        root = ET.fromstring(content)
+    except ET.ParseError:
+        return out
+    for item in root.iter("item"):
+        guid = (item.findtext("guid") or "").strip()
+        enc = item.find("enclosure")
+        key = guid or (enc.get("url") if enc is not None else "")
+        data = {}
+        psc = item.find(NS_PSC + "chapters")
+        if psc is not None:
+            chs = []
+            for ch in psc.findall(NS_PSC + "chapter"):
+                t = postprocess.parse_time(ch.get("start"))
+                if t is not None:
+                    chs.append({"start": t, "title": (ch.get("title") or "").strip()})
+            if chs:
+                data["chapters"] = sorted(chs, key=lambda c: c["start"])
+        p20 = item.find(NS_P20 + "chapters")
+        if p20 is not None and p20.get("url"):
+            data["url"] = p20.get("url")
+        if data and key:
+            out[key] = data
+    return out
+
+
+def _int(v):
+    try:
+        return int(str(v).strip())
+    except (TypeError, ValueError):
+        return None
+
+
 def parse_feed(content: bytes, url: str):
     f = feedparser.parse(content)
+    raw_ch = _raw_chapters(content)
     if f.bozo and not f.entries and not f.feed.get("title"):
         raise ValueError(f"Not a valid feed: {f.get('bozo_exception')}")
     feed = f.feed
@@ -78,9 +139,10 @@ def parse_feed(content: bytes, url: str):
         if not enc_url:
             continue
         pub = _iso(e.get("published_parsed")) or _iso(e.get("updated_parsed"))
-        guid = e.get("id") or e.get("guid") or enc_url
+        guid = (e.get("id") or e.get("guid") or enc_url).strip()
+        ch = raw_ch.get(guid) or raw_ch.get(enc_url) or {}
         episodes.append({
-            "guid": guid.strip(),
+            "guid": guid,
             "title": (e.get("title") or "Untitled").strip(),
             "description": e.get("summary") or "",
             "pub_date": pub,
@@ -88,12 +150,16 @@ def parse_feed(content: bytes, url: str):
             "enclosure_type": enc_type,
             "image_url": _image(e),
             "duration": str(e.get("itunes_duration") or ""),
+            "season": _int(e.get("itunes_season")),
+            "episode_type": (e.get("itunes_episodetype") or "full").strip().lower(),
+            "chapters": postprocess.dumps(ch.get("chapters")),
+            "chapters_url": ch.get("url"),
         })
     return meta, episodes
 
 
-def fetch_feed(url: str):
-    with http_client() as c:
+def fetch_feed(url: str, auth=None):
+    with http_client(auth=auth) as c:
         r = c.get(url)
         r.raise_for_status()
         return parse_feed(r.content, url)
@@ -113,7 +179,8 @@ def save_cover(p, client=None):
     own = client is None
     client = client or http_client(30)
     try:
-        r = client.get(p["image_url"])
+        auth = podcast_auth(p) if same_host(p["image_url"], p["feed_url"]) else None
+        r = client.get(p["image_url"], auth=auth) if auth else client.get(p["image_url"])
         r.raise_for_status()
         data = r.content
         if len(data) < 500:
@@ -126,7 +193,7 @@ def save_cover(p, client=None):
         with db.tx() as c:
             c.execute("UPDATE podcasts SET cover_saved=? WHERE id=?", (p["image_url"], p["id"]))
     except Exception as e:  # cover is nice to have, never fatal
-        log.warning("cover for %s failed: %s", p["title"], e)
+        log.warning("cover for %s failed: %s", ptitle(p), e)
     finally:
         if own:
             client.close()
@@ -227,13 +294,63 @@ def refresh_podcast(pid: int):
         lock.release()
 
 
+def filter_reason(p, e) -> str | None:
+    """Why an episode should not be auto-downloaded, or None."""
+    title = e.get("title") or ""
+    inc = [w.strip() for w in (p["include_filter"] or "").split(",") if w.strip()]
+    exc = [w.strip() for w in (p["exclude_filter"] or "").split(",") if w.strip()]
+    if inc and not any(_matches(w, title) for w in inc):
+        return "filtered: title does not match include filter"
+    for w in exc:
+        if _matches(w, title):
+            return f"filtered: title contains “{w}”"
+    secs = postprocess.parse_time(e.get("duration"))
+    if secs:
+        if p["min_minutes"] and secs < p["min_minutes"] * 60:
+            return f"too short ({int(secs // 60)} min)"
+        if p["max_minutes"] and secs > p["max_minutes"] * 60:
+            return f"too long ({int(secs // 60)} min)"
+    if p["keep_days"] and e.get("pub_date"):
+        try:
+            age = datetime.now(timezone.utc) - datetime.fromisoformat(e["pub_date"])
+            if age.days >= p["keep_days"]:
+                return f"older than {p['keep_days']} days"
+        except ValueError:
+            pass
+    return None
+
+
+def _matches(word: str, title: str) -> bool:
+    if word.startswith("re:"):
+        try:
+            return re.search(word[3:], title, re.I) is not None
+        except re.error:
+            return False
+    return word.lower() in title.lower()
+
+
+def _duplicate_of(c, pid, title) -> int | None:
+    n = _norm(title)
+    if len(n) < 8:
+        return None
+    for r in c.execute("SELECT id, title FROM episodes WHERE podcast_id=?", (pid,)):
+        if _norm(r["title"]) == n:
+            return r["id"]
+    return None
+
+
+EP_COLS = ("guid", "title", "description", "pub_date", "enclosure_url", "enclosure_type",
+           "image_url", "duration", "season", "episode_type", "chapters", "chapters_url")
+
+
 def _refresh(pid: int):
     p = db.one("SELECT * FROM podcasts WHERE id=?", (pid,))
     if not p:
         return
-    meta, episodes = fetch_feed(p["feed_url"])
+    meta, episodes = fetch_feed(p["feed_url"], podcast_auth(p))
     folder = p["folder"] or _unique_folder(
-        naming.podcast_folder(db.get_setting("podcast_format"), meta["title"], meta["author"]), pid)
+        naming.podcast_folder(db.get_setting("podcast_format"), p["title_override"] or meta["title"],
+                              meta["author"]), pid)
 
     newest_first = sorted(episodes, key=lambda e: e["pub_date"] or "", reverse=True)
     queued_now = 0
@@ -254,38 +371,42 @@ def _refresh(pid: int):
             if row:
                 c.execute(
                     "UPDATE episodes SET title=?, description=?, pub_date=COALESCE(?, pub_date), "
-                    "enclosure_url=?, enclosure_type=?, image_url=?, duration=? WHERE id=?",
-                    (e["title"], e["description"], e["pub_date"], e["enclosure_url"],
-                     e["enclosure_type"], e["image_url"], e["duration"], row["id"]),
+                    "enclosure_url=?, enclosure_type=?, image_url=?, duration=?, season=?, episode_type=?, "
+                    "chapters=COALESCE(?, chapters), chapters_url=COALESCE(?, chapters_url) WHERE id=?",
+                    (e["title"], e["description"], e["pub_date"], e["enclosure_url"], e["enclosure_type"],
+                     e["image_url"], e["duration"], e["season"], e["episode_type"], e["chapters"],
+                     e["chapters_url"], row["id"]),
                 )
                 continue
+            values = [e[k] for k in EP_COLS]
+            cols = ", ".join(EP_COLS)
+            marks = ",".join("?" * len(EP_COLS))
             match = existing.get(_norm(e["title"])) if existing else None
             if match:
                 for k in [k for k, v in existing.items() if v == match]:
                     del existing[k]
                 cur = c.execute(
-                    "INSERT INTO episodes(podcast_id, guid, title, description, pub_date, enclosure_url, "
-                    "enclosure_type, image_url, duration, status, file_path, file_size, downloaded_at) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,'done',?,?,?)",
-                    (pid, e["guid"], e["title"], e["description"], e["pub_date"], e["enclosure_url"],
-                     e["enclosure_type"], e["image_url"], e["duration"], match,
-                     os.path.getsize(match), now_iso()),
-                )
+                    f"INSERT INTO episodes(podcast_id, {cols}, status, file_path, file_size, downloaded_at) "
+                    f"VALUES (?, {marks}, 'done', ?, ?, ?)",
+                    [pid, *values, match, os.path.getsize(match), now_iso()])
                 adopted.append(cur.lastrowid)
                 queued_now += 1  # counts toward the initial budget
                 continue
-            if p["auto_download"] and (new_budget <= 0 or queued_now < new_budget):
+            reason = None
+            dup = _duplicate_of(c, pid, e["title"])
+            if dup:
+                reason = f"duplicate of episode #{dup}"
+            elif p["auto_download"]:
+                reason = filter_reason(p, e)
+            if p["auto_download"] and not reason and (new_budget <= 0 or queued_now < new_budget):
                 status = "queued"
                 queued_now += 1
             else:
                 # first run: older backlog is skipped; later: just listed as new
-                status = "skipped" if first_run else "new"
+                status = "skipped" if (first_run or reason) else "new"
             c.execute(
-                "INSERT INTO episodes(podcast_id, guid, title, description, pub_date, enclosure_url, "
-                "enclosure_type, image_url, duration, status) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                (pid, e["guid"], e["title"], e["description"], e["pub_date"], e["enclosure_url"],
-                 e["enclosure_type"], e["image_url"], e["duration"], status),
-            )
+                f"INSERT INTO episodes(podcast_id, {cols}, status, skip_reason) VALUES (?, {marks}, ?, ?)",
+                [pid, *values, status, reason])
         c.execute("UPDATE podcasts SET initialized=1 WHERE id=?", (pid,))
 
     os.makedirs(os.path.join(config.PODCAST_DIR, folder), exist_ok=True)

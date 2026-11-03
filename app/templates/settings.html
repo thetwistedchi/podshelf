@@ -1,9 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Settings · Podshelf{% endblock %}
 {% block content %}
+{% macro hours(cur) %}<option value="" {% if cur in ('', None) %}selected{% endif %}>always</option>{% for h in range(24) %}<option value="{{ h }}" {% if cur == h|string %}selected{% endif %}>{{ h }}:00</option>{% endfor %}{% endmacro %}
+{% macro sync_line(st) %}{% if st is none %}<span class="muted small">not set up</span>{% elif st.ok %}<span class="small ok-text">✓ {{ st.matched }} episodes matched</span>{% else %}<span class="small err">{{ st.error }}</span>{% endif %}{% endmacro %}
+
 <div class="page-head"><div><h1>Settings</h1><p class="muted">Files are saved to <code>{{ podcast_dir }}</code></p></div></div>
 
 <form method="post" action="/settings" class="stack">
+  <input type="hidden" name="_form" value="settings">
   <section class="card">
     <h2>File naming</h2>
     <div class="cols2">
@@ -30,12 +34,49 @@
     <h2>Downloads &amp; tags</h2>
     <div class="cols4">
       <label>Parallel downloads <input name="parallel_downloads" type="number" min="1" max="8" value="{{ s.parallel_downloads }}"></label>
+      <label>Bandwidth limit (KB/s) <input name="bandwidth_kbps" type="number" min="0" value="{{ s.bandwidth_kbps }}"><small>All downloads together. 0 = unlimited. 1250 KB/s ≈ 10 Mbit/s</small></label>
+      <label>Download window from <select name="window_start">{{ hours(s.window_start) }}</select><small>Automatic downloads only run in this time. Manual downloads always start.</small></label>
+      <label>until <select name="window_end">{{ hours(s.window_end) }}</select><small>e.g. 1:00 until 7:00. Both "always" = no window.</small></label>
     </div>
     <label class="check"><input type="checkbox" name="strip_date_tag" {% if s.strip_date_tag == '1' %}checked{% endif %}> Remove year/date tags <small class="muted">(prevents Plex from splitting one podcast into several albums)</small></label>
     <label class="check"><input type="checkbox" name="force_podcast_cover" {% if s.force_podcast_cover == '1' %}checked{% endif %}> Always embed the podcast cover <small class="muted">(instead of per-episode artwork)</small></label>
   </section>
 
-  <div class="actions end"><button class="btn primary">Save settings</button></div>
+  <section class="card">
+    <h2>Ad skipping</h2>
+    {% if not ffmpeg %}<div class="flash error">ffmpeg is not installed in this container, ad skipping and m4a chapters are disabled.</div>{% endif %}
+    <label>Chapter titles that count as ads <input name="ad_keywords" value="{{ s.ad_keywords }}"><small>Comma separated, whole words, case doesn't matter. Turn ad skipping on per podcast (Settings → Ad skipping).</small></label>
+  </section>
+
+  <section class="card" id="sync">
+    <h2>Played status sync</h2>
+    <p class="small muted">Episodes you finish in Plex or Emby are marked as played here, and the other way round. Files are matched by podcast folder and file name, so different mount paths don't matter. Combine with "Delete played episodes" in a podcast's settings.</p>
+    <div class="cols4">
+      <label>Sync every (minutes) <input name="sync_minutes" type="number" min="5" value="{{ s.sync_minutes }}"></label>
+    </div>
+    <h3>Plex</h3>
+    <div class="cols4">
+      <label>Server URL <input name="plex_url" value="{{ s.plex_url }}" placeholder="http://192.168.178.100:32400"></label>
+      <label>Token <input name="plex_token" type="password" autocomplete="new-password" placeholder="{{ '•••••••• (saved)' if secrets_set.plex_token else 'X-Plex-Token' }}">
+        <small><a href="https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/" target="_blank" rel="noopener">How to find it</a>{% if secrets_set.plex_token %} · <label class="inline"><input type="checkbox" name="clear_plex_token"> remove</label>{% endif %}</small></label>
+      <label>Library name <input name="plex_library" value="{{ s.plex_library }}" placeholder="Podcasts"><small>Empty = all music libraries</small></label>
+      <div class="sync-state">{{ sync_line(sync_status.plex) }}</div>
+    </div>
+    <h3>Emby</h3>
+    <div class="cols4">
+      <label>Server URL <input name="emby_url" value="{{ s.emby_url }}" placeholder="http://192.168.178.100:8096"></label>
+      <label>API key <input name="emby_key" type="password" autocomplete="new-password" placeholder="{{ '•••••••• (saved)' if secrets_set.emby_key else 'Dashboard → API Keys' }}">
+        {% if secrets_set.emby_key %}<small><label class="inline"><input type="checkbox" name="clear_emby_key"> remove</label></small>{% endif %}</label>
+      <label>User name <input name="emby_user" value="{{ s.emby_user }}" placeholder="whose played status to sync"></label>
+      <label>Library name <input name="emby_library" value="{{ s.emby_library }}" placeholder="Podcasts"><small>Empty = all libraries</small></label>
+    </div>
+    <div class="sync-state">{{ sync_line(sync_status.emby) }}{% if sync_status.last_run %} · last sync {{ sync_status.last_run|date(true) }}{% endif %}</div>
+  </section>
+
+  <div class="actions end">
+    <button class="btn" formaction="/sync/run" title="Saves and syncs right away">Save &amp; sync now</button>
+    <button class="btn primary">Save settings</button>
+  </div>
 </form>
 
 <section class="card">
@@ -46,6 +87,19 @@
       <button class="btn">Import OPML</button>
     </form>
     <a class="btn" href="/opml/export">Export OPML</a>
+  </div>
+</section>
+
+<section class="card" id="backup">
+  <h2>Backup</h2>
+  <p class="small muted">The backup contains all podcasts, episodes, played status, settings and saved passwords/tokens. Keep it somewhere safe.</p>
+  <div class="row wrap">
+    <a class="btn" href="/backup">Download backup</a>
+    <form method="post" action="/restore" enctype="multipart/form-data" class="row"
+          onsubmit="return confirm('Replace everything in Podshelf with this backup?')">
+      <input type="file" name="file" accept=".db" required>
+      <button class="btn danger-ghost">Restore</button>
+    </form>
   </div>
 </section>
 

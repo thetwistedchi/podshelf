@@ -85,34 +85,70 @@
       if (reload) return location.reload();
       updateRow(ep);
       toast({ download: 'Added to download queue', delete: 'File deleted', cancel: 'Removed from queue',
-              pin: ep.pinned ? 'Episode will be kept' : 'Episode follows retention again', skip: 'Skipped' }[action] || 'Done');
+              pin: ep.pinned ? 'Episode will be kept' : 'Episode follows retention again', skip: 'Skipped',
+              played: ep.played ? 'Marked as played' : 'Marked as unplayed' }[action] || 'Done');
     } catch (err) { toast(err.message, true); }
+  }
+
+  function actionsHtml(ep) {
+    const b = (cls, title, onclick, icon) => `<button class="icon ${cls}" title="${title}" onclick="${onclick}">${icon}</button>`;
+    let h = b('', 'Play', `Podshelf.play(${ep.id})`, '▶') +
+      b('check' + (ep.played ? ' on' : ''), ep.played ? 'Mark as unplayed' : 'Mark as played', `Podshelf.act(${ep.id}, 'played')`, '✓') +
+      b('', 'Edit title and number', `Podshelf.edit(${ep.id})`, '✎');
+    if (['new', 'skipped', 'deleted', 'failed'].includes(ep.status)) h += b('', 'Download', `Podshelf.act(${ep.id}, 'download')`, '⬇');
+    else if (['queued', 'downloading'].includes(ep.status)) h += b('', 'Cancel', `Podshelf.act(${ep.id}, 'cancel')`, '✕');
+    else if (ep.status === 'done')
+      h += b('pin' + (ep.pinned ? ' on' : ''), ep.pinned ? 'Unpin (allow cleanup)' : 'Keep forever (ignore retention)', `Podshelf.act(${ep.id}, 'pin')`, '📌') +
+           b('', 'Delete file', `Podshelf.act(${ep.id}, 'delete', 'Delete this file?')`, '🗑');
+    return h;
   }
 
   function updateRow(ep) {
     const li = document.getElementById('ep-' + ep.id);
     if (!li) return;
-    if (li.dataset.status !== ep.status) {
-      // simplest reliable way to get the right buttons: reload the row's page section
-      li.dataset.status = ep.status;
-      const chip = $('.chip', li);
-      chip.className = 'chip status-' + ep.status;
-      chip.textContent = STATUS[ep.status] || ep.status;
-      const acts = $('.ep-actions', li);
-      const play = `<button class="icon" title="Play" onclick="Podshelf.play(${ep.id})">▶</button>`;
-      if (['new', 'skipped', 'deleted', 'failed'].includes(ep.status))
-        acts.innerHTML = play + `<button class="icon" title="Download" onclick="Podshelf.act(${ep.id}, 'download')">⬇</button>`;
-      else if (['queued', 'downloading'].includes(ep.status))
-        acts.innerHTML = play + `<button class="icon" title="Cancel" onclick="Podshelf.act(${ep.id}, 'cancel')">✕</button>`;
-      else if (ep.status === 'done')
-        acts.innerHTML = play + `<button class="icon pin ${ep.pinned ? 'on' : ''}" title="Keep forever" onclick="Podshelf.act(${ep.id}, 'pin')">📌</button>` +
-          `<button class="icon" title="Delete file" onclick="Podshelf.act(${ep.id}, 'delete', 'Delete this file?')">🗑</button>`;
-      if (ep.status !== 'downloading') $('.progress', li).hidden = true;
-    } else if (ep.status === 'done') {
-      const pin = $(".icon.pin", li);
-      if (pin) pin.classList.toggle('on', !!ep.pinned);
+    if (ep.played !== undefined) {
+      li.classList.toggle('played', !!ep.played);
+      const dot = $('.dot', li);
+      if (dot && (ep.played || ep.status !== 'done')) dot.remove();
+      if (!dot && !ep.played && ep.status === 'done') $('.ep-title', li).insertAdjacentHTML('afterbegin', '<span class="dot" title="Unplayed"></span>');
     }
+    li.dataset.status = ep.status;
+    const chip = $('.chip', li);
+    chip.className = 'chip status-' + ep.status;
+    chip.textContent = STATUS[ep.status] || ep.status;
+    if (ep.played !== undefined) $('.ep-actions', li).innerHTML = actionsHtml(ep);
+    if (ep.status !== 'downloading') $('.progress', li).hidden = true;
   }
+
+  // ---------------------------------------------------------- edit
+  function edit(id) {
+    const li = document.getElementById('ep-' + id);
+    const f = $('#edit-form');
+    f.id.value = id;
+    f.title.value = li.dataset.title;
+    f.number.value = li.dataset.number;
+    $('#edit-orig').textContent = 'Feed title: ' + li.dataset.origTitle;
+    open('edit-dialog');
+    f.title.focus();
+  }
+  function resetEdit() {
+    const f = $('#edit-form');
+    const li = document.getElementById('ep-' + f.id.value);
+    f.title.value = li.dataset.origTitle;
+    f.number.value = '';
+  }
+  const ef = $('#edit-form');
+  if (ef) ef.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = $('button.primary', ef); btn.disabled = true;
+    try {
+      await api(`/api/episodes/${ef.id.value}/edit`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: ef.title.value, number: ef.number.value }),
+      });
+      location.reload();
+    } catch (err) { toast(err.message, true); btn.disabled = false; }
+  });
 
   function sanitize(html) {
     const doc = new DOMParser().parseFromString(html || '', 'text/html');
@@ -138,20 +174,41 @@
     const d = $('.desc', li);
     if (!d.hidden) { d.hidden = true; return; }
     if (!d.dataset.loaded) {
-      try { const ep = await api('/api/episodes/' + id); d.innerHTML = sanitize(ep.description); d.dataset.loaded = 1; }
-      catch (err) { toast(err.message, true); return; }
+      try {
+        const ep = await api('/api/episodes/' + id);
+        let html = '';
+        if (ep.chapters && ep.chapters.length) {
+          html += '<div class="chapters"><strong class="small">Chapters</strong><ol>' + ep.chapters.map((c) => {
+            const t = fmtTime(c.start);
+            const title = document.createElement('span'); title.textContent = c.title || '';
+            return `<li><button class="linklike chap" onclick="Podshelf.play(${id}, ${c.start})">${t}</button> ${title.innerHTML}</li>`;
+          }).join('') + '</ol></div>';
+        }
+        d.innerHTML = html + sanitize(ep.description);
+        d.dataset.loaded = 1;
+      } catch (err) { toast(err.message, true); return; }
     }
     d.hidden = false;
   }
 
   // ---------------------------------------------------------- player
-  function play(id) {
+  function fmtTime(s) {
+    s = Math.floor(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+    return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(sec).padStart(2, '0');
+  }
+
+  function play(id, at) {
     const li = document.getElementById('ep-' + id);
     const p = $('#player'), a = $('#player-audio');
     $('#player-title').textContent = li ? li.dataset.title : '';
     $('#player-podcast').textContent = li ? li.dataset.podcast : '';
     $('#player-cover').src = li ? li.dataset.cover : '/static/placeholder.svg';
-    a.src = `/episodes/${id}/audio`;
+    const src = `/episodes/${id}/audio`;
+    if (!a.src.endsWith(src)) a.src = src;
+    if (at !== undefined) {
+      const seek = () => { a.currentTime = at; };
+      if (a.readyState >= 1) seek(); else a.addEventListener('loadedmetadata', seek, { once: true });
+    }
     p.hidden = false;
     document.body.classList.add('has-player');
     a.play().catch(() => {});
@@ -228,6 +285,6 @@
     pf.addEventListener('input', upd); ef.addEventListener('input', upd);
   }
 
-  window.Podshelf = { open, act, toggleDesc, play, closePlayer, namingPreview, toast,
+  window.Podshelf = { open, act, edit, resetEdit, toggleDesc, play, closePlayer, namingPreview, toast,
                       watchQueuePage: () => (window._queuePage = true) };
 })();

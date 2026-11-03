@@ -56,7 +56,45 @@ CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT
 );
+CREATE TABLE IF NOT EXISTS podcast_tags (
+    podcast_id INTEGER NOT NULL REFERENCES podcasts(id) ON DELETE CASCADE,
+    tag TEXT NOT NULL,
+    PRIMARY KEY (podcast_id, tag)
+);
 """
+
+# columns added after 1.0; added to existing databases on start
+MIGRATIONS = {
+    "podcasts": {
+        "title_override": "TEXT",
+        "keep_days": "INTEGER NOT NULL DEFAULT 0",
+        "include_filter": "TEXT NOT NULL DEFAULT ''",
+        "exclude_filter": "TEXT NOT NULL DEFAULT ''",
+        "min_minutes": "INTEGER NOT NULL DEFAULT 0",
+        "max_minutes": "INTEGER NOT NULL DEFAULT 0",
+        "trim_start": "INTEGER NOT NULL DEFAULT 0",
+        "trim_end": "INTEGER NOT NULL DEFAULT 0",
+        "cut_ad_chapters": "INTEGER NOT NULL DEFAULT 0",
+        "auth_user": "TEXT NOT NULL DEFAULT ''",
+        "auth_pass": "TEXT NOT NULL DEFAULT ''",
+        "split_mode": "TEXT NOT NULL DEFAULT 'none'",   # none|season|bonus|both
+        "delete_played_days": "INTEGER NOT NULL DEFAULT -1",  # -1 = never
+    },
+    "episodes": {
+        "played": "INTEGER NOT NULL DEFAULT 0",
+        "played_at": "TEXT",
+        "season": "INTEGER",
+        "episode_type": "TEXT",
+        "chapters": "TEXT",          # JSON [{"start": sec, "title": str}] as published in the feed
+        "file_chapters": "TEXT",     # chapters as they are in the file (after ad cuts)
+        "chapters_url": "TEXT",
+        "title_override": "TEXT",
+        "number_override": "INTEGER",
+        "skip_reason": "TEXT",
+        "length_secs": "INTEGER",    # real length after download
+        "cut_secs": "INTEGER",       # seconds removed by ad skipping
+    },
+}
 
 
 def conn() -> sqlite3.Connection:
@@ -96,10 +134,40 @@ def one(sql, params=()):
 def init():
     with tx() as c:
         c.executescript(SCHEMA)
+        for table, cols in MIGRATIONS.items():
+            have = {r["name"] for r in c.execute(f"PRAGMA table_info({table})")}
+            for name, ddl in cols.items():
+                if name not in have:
+                    c.execute(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_ep_played ON episodes(podcast_id, played)")
         for k, v in config.DEFAULT_SETTINGS.items():
             c.execute("INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)", (k, v))
         # anything stuck mid-download after a restart goes back to the queue
         c.execute("UPDATE episodes SET status='queued' WHERE status='downloading'")
+
+
+def backup_to(path: str):
+    """Consistent copy of the live database (safe while the app runs)."""
+    dest = sqlite3.connect(path)
+    try:
+        with _write_lock:
+            conn().backup(dest)
+    finally:
+        dest.close()
+
+
+def restore_from(path: str):
+    """Replace the live database contents with a backup file."""
+    src = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    try:
+        names = {r[0] for r in src.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if not {"podcasts", "episodes", "settings"} <= names:
+            raise ValueError("not a Podshelf backup")
+        with _write_lock:
+            src.backup(conn())
+    finally:
+        src.close()
+    init()  # apply migrations to older backups
 
 
 def get_setting(key):

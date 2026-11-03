@@ -26,6 +26,9 @@ def _loop():
                     feeds.refresh_podcast(p["id"])
             if tick % 60 == 0:  # roughly hourly housekeeping
                 downloader.verify_files()
+                downloader.apply_retention_all()  # "keep for X days" expires without new downloads
+            if tick % 5 == 0:
+                feeds.wake_downloads.set()  # download window may have opened
         except Exception:
             log.exception("scheduler loop")
         tick += 1

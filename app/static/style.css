@@ -293,3 +293,65 @@ input[type=checkbox] { accent-color: var(--pink); }
 .toast { background: var(--surface-2); color: var(--text); border: 1px solid var(--purple); }
 .flash { border: 1px solid currentColor; }
 .icon.on { background: rgb(255 79 216 / .18); }
+
+/* ---------- v1.1 additions ---------- */
+h3 { font-size: .95rem; margin: 1.2rem 0 .6rem; color: var(--muted); }
+.ok-text { color: var(--ok); }
+.mono { font-family: ui-monospace, monospace; font-size: .78rem; }
+label.inline { display: inline-flex; flex-direction: row; gap: .3rem; font-weight: 400; align-items: center; }
+label.inline input { width: 14px; height: 14px; }
+.sync-state { align-self: end; padding-bottom: .5rem; }
+
+.menu { position: relative; }
+.menu summary { list-style: none; }
+.menu summary::-webkit-details-marker { display: none; }
+.menu-list {
+  position: absolute; z-index: 15; top: calc(100% + 6px); left: 0; min-width: 230px;
+  background: var(--surface); border: 1px solid rgb(157 92 255 / .45); border-radius: 10px; padding: .35rem;
+  box-shadow: 0 12px 40px rgb(0 0 0 / .5); display: flex; flex-direction: column;
+}
+.menu-list form { margin: 0; }
+.menu-list button {
+  width: 100%; text-align: left; font: inherit; font-size: .9rem; background: none; border: 0; color: var(--text);
+  padding: .55rem .7rem; border-radius: 7px; cursor: pointer;
+}
+.menu-list button:hover { background: rgb(157 92 255 / .18); }
+.danger-text { color: var(--bad) !important; }
+@media (max-width: 680px) { .menu-list { left: auto; right: 0; } }
+
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--grad); margin-right: .45rem;
+  vertical-align: middle; box-shadow: 0 0 8px var(--pink); }
+.episode.played .ep-title { color: var(--muted); font-weight: 500; }
+.icon.check { color: var(--muted); }
+.icon.check.on { color: var(--ok); background: var(--ok-soft); }
+.ep-actions { min-width: 170px; }
+
+.chip.tag { background: rgb(79 216 255 / .1); color: var(--cyan); text-decoration: none; }
+.chip.tag:hover, .chip.tag.active { background: rgb(79 216 255 / .25); color: #fff; }
+.tagbar { display: flex; flex-wrap: wrap; gap: .4rem; margin: -0.4rem 0 1.2rem; }
+.unplayed-badge {
+  position: absolute; top: .5rem; right: .5rem; min-width: 26px; height: 26px; padding: 0 .45rem; border-radius: 99px;
+  background: var(--grad); color: #fff; font-weight: 700; font-size: .8rem; display: grid; place-items: center;
+  box-shadow: 0 0 12px rgb(255 79 216 / .5);
+}
+
+.chapters { margin-bottom: .6rem; }
+.chapters ol { margin: .3rem 0 0; padding-left: 0; list-style: none; columns: 2 260px; }
+.chapters li { padding: .1rem 0; break-inside: avoid; }
+.chap { color: var(--cyan); font-variant-numeric: tabular-nums; margin-right: .3rem; }
+
+.statgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.25rem; }
+.stat { display: flex; flex-direction: column; gap: .2rem; margin: 0; }
+.stat strong { font-size: 1.6rem; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.bars { display: flex; align-items: flex-end; gap: .4rem; height: 180px; }
+.bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: .25rem; min-width: 0; }
+.bar-fill { width: 100%; max-width: 42px; min-height: 2px; border-radius: 6px 6px 2px 2px; background: var(--grad); box-shadow: 0 0 12px rgb(157 92 255 / .4); }
+.bar-col .muted { font-size: .7rem; white-space: nowrap; }
+.table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.table th { text-align: left; color: var(--muted); font-weight: 600; font-size: .8rem; padding: .5rem; border-bottom: 1px solid var(--border); }
+.table td { padding: .55rem .5rem; border-bottom: 1px solid var(--border); }
+.table .r { text-align: right; white-space: nowrap; }
+.meter { height: 6px; background: var(--surface-2); border-radius: 99px; overflow: hidden; min-width: 80px; }
+.meter div { height: 100%; background: var(--grad); }
+@media (max-width: 640px) { .table .share, .table th:nth-child(4), .table td:nth-child(4) { display: none; } .ep-actions { min-width: 0; flex-wrap: wrap; } }
+.premium summary { cursor: pointer; color: var(--muted); margin-bottom: .6rem; }

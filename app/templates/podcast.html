@@ -1,19 +1,25 @@
 {% extends "base.html" %}
-{% block title %}{{ p.title }} · Podshelf{% endblock %}
+{% block title %}{{ ptitle(p) }} · Podshelf{% endblock %}
 {% block content %}
 <a class="backlink" href="/">← All podcasts</a>
 
 <section class="hero card" data-podcast="{{ p.id }}">
   <img class="hero-cover" src="/podcasts/{{ p.id }}/cover" alt="">
   <div class="hero-body">
-    <h1>{{ p.title }}</h1>
+    <h1>{{ ptitle(p) }}</h1>
     {% if p.author %}<p class="muted">{{ p.author }}</p>{% endif %}
+    {% if tags %}<div class="chips">{% for t in tags %}<a class="chip tag" href="/?tag={{ t|urlencode }}">#{{ t }}</a>{% endfor %}</div>{% endif %}
     <div class="chips">
       <span class="chip">{{ stats.get('done', 0) }} downloaded</span>
+      {% if unplayed %}<span class="chip status-new">{{ unplayed }} unplayed</span>{% endif %}
       <span class="chip">{{ stats.values()|sum }} in feed</span>
-      <span class="chip">{% if p.keep_count %}Keeps newest {{ p.keep_count }}{% else %}Keeps all{% endif %}</span>
+      <span class="chip">{% if p.keep_count %}Keeps newest {{ p.keep_count }}{% else %}Keeps all{% endif %}{% if p.keep_days %} · max {{ p.keep_days }} days{% endif %}</span>
       <span class="chip">Checks every {{ p.check_hours }} h</span>
       {% if disk %}<span class="chip">{{ disk|size }}</span>{% endif %}
+      {% if p.include_filter or p.exclude_filter or p.min_minutes or p.max_minutes %}<span class="chip info">Filters on</span>{% endif %}
+      {% if p.trim_start or p.trim_end or p.cut_ad_chapters %}<span class="chip info">Ad skipping on</span>{% endif %}
+      {% if p.auth_user %}<span class="chip info">Premium feed</span>{% endif %}
+      {% if p.delete_played_days >= 0 %}<span class="chip">Deletes played{% if p.delete_played_days %} after {{ p.delete_played_days }} d{% endif %}</span>{% endif %}
       {% if not p.auto_download %}<span class="chip warn">Auto download off</span>{% endif %}
       {% if not p.active %}<span class="chip warn">Paused</span>{% endif %}
       {% if refreshing %}<span class="chip info refreshing">Checking feed…</span>{% endif %}
@@ -28,13 +34,20 @@
         <button class="btn">Download latest</button>
         <input name="n" type="number" min="1" max="500" value="{{ p.keep_count or 10 }}" aria-label="Number of episodes">
       </form>
-      <form method="post" action="/podcasts/{{ p.id }}/all"
-            onsubmit="return confirm('Download all {{ stats.values()|sum - stats.get('done', 0) }} remaining episodes? The podcast will be set to keep all episodes.')">
-        <button class="btn">Download all</button>
-      </form>
       <button class="btn" onclick="Podshelf.open('settings-dialog')">Settings</button>
-      <form method="post" action="/podcasts/{{ p.id }}/retag"><button class="btn" title="Rewrite tags, track numbers and cover art for all downloaded files">Fix tags &amp; covers</button></form>
-      <button class="btn danger-ghost" onclick="Podshelf.open('delete-dialog')">Remove</button>
+      <details class="menu">
+        <summary class="btn">More ▾</summary>
+        <div class="menu-list">
+          <form method="post" action="/podcasts/{{ p.id }}/all"
+                onsubmit="return confirm('Download all {{ stats.values()|sum - stats.get('done', 0) }} remaining episodes? The podcast will be set to keep all episodes.')">
+            <button>Download all</button>
+          </form>
+          <form method="post" action="/podcasts/{{ p.id }}/played"><input type="hidden" name="played" value="1"><button>Mark all as played</button></form>
+          <form method="post" action="/podcasts/{{ p.id }}/played"><input type="hidden" name="played" value="0"><button>Mark all as unplayed</button></form>
+          <form method="post" action="/podcasts/{{ p.id }}/retag"><button title="Apply naming, folders, tags, track numbers and covers to all downloaded files">Fix files, tags &amp; covers</button></form>
+          <button class="danger-text" type="button" onclick="Podshelf.open('delete-dialog')">Remove podcast</button>
+        </div>
+      </details>
     </div>
   </div>
 </section>
@@ -42,7 +55,7 @@
 <section class="card">
   <div class="browser-head">
     <div class="tabs">
-      {% for key, label in [('all','All'),('downloaded','Downloaded'),('pending','Queued'),('failed','Failed'),('available','Not downloaded')] %}
+      {% for key, label in [('all','All'),('unplayed','Unplayed'),('downloaded','Downloaded'),('pending','Queued'),('failed','Failed'),('available','Not downloaded')] %}
       <a class="tab {% if status == key %}active{% endif %}" href="?status={{ key }}&q={{ q|urlencode }}&order={{ order }}">{{ label }}</a>
       {% endfor %}
     </div>
@@ -63,15 +76,23 @@
   {% else %}
   <ul class="episodes">
     {% for e in episodes %}
-    <li class="episode" id="ep-{{ e.id }}" data-id="{{ e.id }}" data-status="{{ e.status }}"
-        data-title="{{ e.title }}" data-podcast="{{ p.title }}" data-cover="/podcasts/{{ p.id }}/cover">
-      <span class="num" title="Chronological episode number (track number in Plex/Emby)">#{{ nums.get(e.id) }}</span>
+    <li class="episode {% if e.played %}played{% endif %}" id="ep-{{ e.id }}" data-id="{{ e.id }}" data-status="{{ e.status }}"
+        data-title="{{ ep_title(e) }}" data-orig-title="{{ e.title }}" data-number="{{ e.number_override or '' }}"
+        data-podcast="{{ ptitle(p) }}" data-cover="/podcasts/{{ p.id }}/cover">
+      <span class="num" title="Episode number (track number in Plex/Emby){% if e.number_override %}, set by you{% endif %}">#{{ nums.get(e.id) }}</span>
       <div class="ep-main">
-        <button class="ep-title linklike" onclick="Podshelf.toggleDesc({{ e.id }})">{{ e.title }}</button>
+        <button class="ep-title linklike" onclick="Podshelf.toggleDesc({{ e.id }})">
+          {% if e.status == 'done' and not e.played %}<span class="dot" title="Unplayed"></span>{% endif %}{{ ep_title(e) }}
+        </button>
         <span class="small muted">
-          {{ e.pub_date|date }}{% if e.duration %} · {{ e.duration|duration }}{% endif %}{% if e.file_size %} · {{ e.file_size|size }}{% endif %}
+          {{ e.pub_date|date }}{% if e.length_secs %} · {{ e.length_secs|secs }}{% elif e.duration %} · {{ e.duration|duration }}{% endif %}{% if e.file_size %} · {{ e.file_size|size }}{% endif %}
+          {% if e.season %} · S{{ e.season }}{% endif %}{% if e.episode_type in ('bonus', 'trailer') %} · {{ e.episode_type }}{% endif %}
+          {% if e.cut_secs %} · <span title="Removed by ad skipping">✂ {{ e.cut_secs|secs }}</span>{% endif %}
+          {% if e.file_chapters or e.chapters or e.chapters_url %} · <span title="Has chapters">☰ chapters</span>{% endif %}
           {% if e.pinned %} · <span title="Kept regardless of retention">📌 kept</span>{% endif %}
+          {% if e.played %} · <span title="Played {{ e.played_at|date(true) }}">✓ played</span>{% endif %}
         </span>
+        {% if e.status == 'skipped' and e.skip_reason %}<span class="small muted">Skipped: {{ e.skip_reason }}</span>{% endif %}
         {% if e.error and e.status in ('failed','queued') %}<span class="small err">{{ e.error }}{% if e.status == 'queued' and e.attempts %} (retry {{ e.attempts }}){% endif %}</span>{% endif %}
         <div class="progress" hidden><div class="bar"></div><span class="small muted ptext"></span></div>
         <div class="desc" hidden></div>
@@ -79,6 +100,8 @@
       <span class="chip status-{{ e.status }}">{{ {'done':'Downloaded','queued':'Queued','downloading':'Downloading','failed':'Failed','deleted':'Removed','skipped':'Not downloaded','new':'New'}[e.status] }}</span>
       <div class="ep-actions">
         <button class="icon" title="Play" onclick="Podshelf.play({{ e.id }})">▶</button>
+        <button class="icon check {% if e.played %}on{% endif %}" title="{{ 'Mark as unplayed' if e.played else 'Mark as played' }}" onclick="Podshelf.act({{ e.id }}, 'played')">✓</button>
+        <button class="icon" title="Edit title and number" onclick="Podshelf.edit({{ e.id }})">✎</button>
         {% if e.status in ('new','skipped','deleted','failed') %}
           <button class="icon" title="Download" onclick="Podshelf.act({{ e.id }}, 'download')">⬇</button>
         {% elif e.status in ('queued','downloading') %}
@@ -101,24 +124,87 @@
   {% endif %}
 </section>
 
-<dialog id="settings-dialog" class="dialog">
+<dialog id="settings-dialog" class="dialog wide">
   <div class="dialog-head"><h2>Podcast settings</h2><button class="x" onclick="this.closest('dialog').close()" aria-label="Close">×</button></div>
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-tab="ps-general">General</button>
+    <button class="tab" data-tab="ps-rules">Download rules</button>
+    <button class="tab" data-tab="ps-ads">Ad skipping</button>
+    <button class="tab" data-tab="ps-organize">Organize</button>
+    <button class="tab" data-tab="ps-premium">Premium feed</button>
+  </div>
   <form method="post" action="/podcasts/{{ p.id }}/settings" class="stack">
-    <div class="cols2">
-      <label>Keep episodes <input name="keep_count" type="number" min="0" value="{{ p.keep_count }}"><small>0 = keep all. Older files are deleted after each download. Pinned episodes are never deleted.</small></label>
-      <label>Check every (hours) <input name="check_hours" type="number" min="1" value="{{ p.check_hours }}"></label>
-      <label>Max new per check <input name="max_new" type="number" min="0" value="{{ p.max_new }}"><small>0 = no limit</small></label>
-      <label>Folder name <input name="folder" value="{{ p.folder or '' }}"><small>Renaming moves existing files.</small></label>
-    </div>
-    <label>Feed URL <input name="feed_url" type="url" value="{{ p.feed_url }}"></label>
-    <label class="check"><input type="checkbox" name="auto_download" {% if p.auto_download %}checked{% endif %}> Download new episodes automatically</label>
-    <label class="check"><input type="checkbox" name="active" {% if p.active %}checked{% endif %}> Check feed on schedule</label>
+    <section id="ps-general" class="tab-panel stack">
+      <div class="cols2">
+        <label>Keep newest episodes <input name="keep_count" type="number" min="0" value="{{ p.keep_count }}"><small>0 = keep all. Pinned episodes are never deleted.</small></label>
+        <label>Keep for days <input name="keep_days" type="number" min="0" value="{{ p.keep_days }}"><small>Delete episodes older than this. 0 = off. Works together with "keep newest".</small></label>
+        <label>Check every (hours) <input name="check_hours" type="number" min="1" value="{{ p.check_hours }}"></label>
+        <label>Max new per check <input name="max_new" type="number" min="0" value="{{ p.max_new }}"><small>0 = no limit</small></label>
+        <label>Delete played episodes after (days) <input name="delete_played_days" type="number" min="0" value="{{ p.delete_played_days if p.delete_played_days >= 0 else '' }}" placeholder="never"><small>Empty = never, 0 = right away. Played status also comes from Plex/Emby.</small></label>
+      </div>
+      <label>Feed URL <input name="feed_url" type="url" value="{{ p.feed_url }}"></label>
+      <label class="check"><input type="checkbox" name="auto_download" {% if p.auto_download %}checked{% endif %}> Download new episodes automatically</label>
+      <label class="check"><input type="checkbox" name="active" {% if p.active %}checked{% endif %}> Check feed on schedule</label>
+    </section>
+
+    <section id="ps-rules" class="tab-panel stack" hidden>
+      <p class="small muted">Rules only apply to automatic downloads. Episodes you download by hand are always fetched.</p>
+      <div class="cols2">
+        <label>Only titles containing <input name="include_filter" value="{{ p.include_filter }}" placeholder="e.g. Folge, Episode"><small>Comma separated, any of them. <code>re:</code> prefix for a regular expression.</small></label>
+        <label>Skip titles containing <input name="exclude_filter" value="{{ p.exclude_filter }}" placeholder="e.g. Trailer, Best of, Rerun"><small>Comma separated.</small></label>
+        <label>Minimum length (minutes) <input name="min_minutes" type="number" min="0" value="{{ p.min_minutes }}"><small>0 = off. Skips teasers and announcements.</small></label>
+        <label>Maximum length (minutes) <input name="max_minutes" type="number" min="0" value="{{ p.max_minutes }}"><small>0 = off.</small></label>
+      </div>
+    </section>
+
+    <section id="ps-ads" class="tab-panel stack" hidden>
+      {% if not ffmpeg %}<div class="flash error">ffmpeg is not installed in this container, ad skipping is disabled.</div>{% endif %}
+      <p class="small muted">Cuts the file after download without re-encoding. Most podcasts put their ads in the same spots, so cutting a fixed amount from the start and end removes pre-roll and post-roll ads.</p>
+      <div class="cols2">
+        <label>Cut from start (seconds) <input name="trim_start" type="number" min="0" value="{{ p.trim_start }}"><small>Pre-roll ads / intro. 0 = off.</small></label>
+        <label>Cut from end (seconds) <input name="trim_end" type="number" min="0" value="{{ p.trim_end }}"><small>Post-roll ads / outro. 0 = off.</small></label>
+      </div>
+      <label class="check"><input type="checkbox" name="cut_ad_chapters" {% if p.cut_ad_chapters %}checked{% endif %}> Remove chapters that are marked as ads</label>
+      <p class="small muted">Chapter titles matching: <code>{{ ad_keywords }}</code> (change in Settings). Mid-roll ads without chapters can't be detected reliably.</p>
+    </section>
+
+    <section id="ps-organize" class="tab-panel stack" hidden>
+      <div class="cols2">
+        <label>Display name <input name="title_override" value="{{ p.title_override or '' }}" placeholder="{{ p.title }}"><small>Used as album name in Plex/Emby. Empty = feed title.</small></label>
+        <label>Folder name <input name="folder" value="{{ p.folder or '' }}"><small>Renaming moves existing files.</small></label>
+        <label>Separate folders <select name="split_mode">
+          {% for v, l in [('none', 'No, everything in one folder'), ('season', 'Season XX folders'), ('bonus', 'Bonus folder for bonus/trailer episodes'), ('both', 'Seasons and bonus folder')] %}
+          <option value="{{ v }}" {% if p.split_mode == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select><small>Each folder becomes its own album in Plex/Emby. Uses the season and type the feed provides.</small></label>
+        <label>Tags <input name="tags" value="{{ tags|join(', ') }}" placeholder="e.g. True Crime, Comedy"><small>Comma separated. Filter by tag on the start page.</small></label>
+      </div>
+    </section>
+
+    <section id="ps-premium" class="tab-panel stack" hidden>
+      <p class="small muted">For paid feeds with a username and password (HTTP basic auth). Feeds with a private token in the URL (Patreon, Steady, Supercast) work without this, just paste the full URL. Credentials are only sent to the feed's own server.</p>
+      <div class="cols2">
+        <label>Username <input name="auth_user" value="{{ p.auth_user }}" autocomplete="off"></label>
+        <label>Password <input name="auth_pass" type="password" autocomplete="new-password" placeholder="{{ '•••••••• (saved)' if p.auth_pass else '' }}"><small>Leave empty to keep the saved password. Clear the username to remove both.</small></label>
+      </div>
+    </section>
+
     <div class="actions end"><button type="button" class="btn" onclick="this.closest('dialog').close()">Cancel</button><button class="btn primary">Save</button></div>
   </form>
 </dialog>
 
+<dialog id="edit-dialog" class="dialog">
+  <div class="dialog-head"><h2>Edit episode</h2><button class="x" onclick="this.closest('dialog').close()" aria-label="Close">×</button></div>
+  <form id="edit-form" class="stack">
+    <input type="hidden" name="id">
+    <label>Title <input name="title" required><small id="edit-orig"></small></label>
+    <label>Episode number <input name="number" type="number" min="1" placeholder="automatic"><small>Track number in Plex/Emby. Empty = automatic (chronological).</small></label>
+    <p class="small muted">Downloaded files are renamed and retagged right away.</p>
+    <div class="actions end"><button type="button" class="btn" onclick="Podshelf.resetEdit()">Reset to feed</button><button class="btn primary">Save</button></div>
+  </form>
+</dialog>
+
 <dialog id="delete-dialog" class="dialog">
-  <div class="dialog-head"><h2>Remove “{{ p.title }}”?</h2><button class="x" onclick="this.closest('dialog').close()" aria-label="Close">×</button></div>
+  <div class="dialog-head"><h2>Remove “{{ ptitle(p) }}”?</h2><button class="x" onclick="this.closest('dialog').close()" aria-label="Close">×</button></div>
   <form method="post" action="/podcasts/{{ p.id }}/delete" class="stack">
     <label class="check"><input type="checkbox" name="delete_files"> Also delete the {{ stats.get('done', 0) }} downloaded files</label>
     <div class="actions end"><button type="button" class="btn" onclick="this.closest('dialog').close()">Cancel</button><button class="btn danger">Remove</button></div>
