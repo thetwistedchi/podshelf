@@ -170,33 +170,86 @@ def podcast_dir(p) -> str:
     return os.path.join(config.PODCAST_DIR, p["folder"])
 
 
-def save_cover(p, client=None):
-    if not p["image_url"] or not p["folder"]:
+def cover_source(p) -> str | None:
+    """The image the podcast cover comes from: a chosen one wins over the feed image."""
+    if p["cover_override"]:
+        return None if p["cover_override"] == "upload" else p["cover_override"]
+    return p["image_url"]
+
+
+def save_cover(p, client=None, force=False):
+    src = cover_source(p)
+    if not src or not p["folder"]:
         return
     path = os.path.join(podcast_dir(p), "cover.jpg")
-    if p["cover_saved"] == p["image_url"] and os.path.isfile(path):
+    if not force and p["cover_saved"] == src and os.path.isfile(path):
         return
     own = client is None
     client = client or http_client(30)
     try:
-        auth = podcast_auth(p) if same_host(p["image_url"], p["feed_url"]) else None
-        r = client.get(p["image_url"], auth=auth) if auth else client.get(p["image_url"])
+        auth = podcast_auth(p) if same_host(src, p["feed_url"]) else None
+        r = client.get(src, auth=auth) if auth else client.get(src)
         r.raise_for_status()
-        data = r.content
-        if len(data) < 500:
-            raise ValueError("image too small")
-        os.makedirs(podcast_dir(p), exist_ok=True)
-        tmp = path + ".part"
-        with open(tmp, "wb") as fh:
-            fh.write(_to_jpeg(data))
-        os.replace(tmp, path)
-        with db.tx() as c:
-            c.execute("UPDATE podcasts SET cover_saved=? WHERE id=?", (p["image_url"], p["id"]))
+        write_cover(p, r.content, src)
     except Exception as e:  # cover is nice to have, never fatal
         log.warning("cover for %s failed: %s", ptitle(p), e)
     finally:
         if own:
             client.close()
+
+
+def write_cover(p, data: bytes, source: str):
+    """Store artwork as cover.jpg in the podcast folder and its season/bonus folders."""
+    if len(data) < 500:
+        raise ValueError("image too small")
+    from io import BytesIO
+    from PIL import Image
+    try:
+        Image.open(BytesIO(data)).verify()
+    except Exception:
+        raise ValueError("not an image")
+    jpeg = _to_jpeg(data, 3000)
+    folder = podcast_dir(p)
+    os.makedirs(folder, exist_ok=True)
+    targets = [os.path.join(folder, "cover.jpg")]
+    for sub in os.listdir(folder):
+        if os.path.isfile(os.path.join(folder, sub, "cover.jpg")):
+            targets.append(os.path.join(folder, sub, "cover.jpg"))
+    for t in targets:
+        with open(t + ".part", "wb") as fh:
+            fh.write(jpeg)
+        os.replace(t + ".part", t)
+    with db.tx() as c:
+        c.execute("UPDATE podcasts SET cover_saved=?, cover_updated=? WHERE id=?",
+                  (source, now_iso(), p["id"]))
+
+
+def cover_candidates(p, term: str | None = None) -> list[dict]:
+    """Artwork options: the feed's own image plus Apple Podcasts results in high resolution."""
+    out, seen = [], set()
+
+    def add(url, source, title, preview=None, size=None, fallback=None):
+        if url and url not in seen:
+            seen.add(url)
+            out.append({"url": url, "preview": preview or url, "source": source, "title": title,
+                        "size": size, "fallback": fallback})
+
+    add(p["image_url"], "Feed", ptitle(p))
+    term = (term or ptitle(p) or "").strip()
+    if term:
+        with http_client(20) as c:
+            r = c.get("https://itunes.apple.com/search",
+                      params={"media": "podcast", "term": term, "limit": 24})
+            r.raise_for_status()
+            for x in r.json().get("results", []):
+                base = x.get("artworkUrl600") or x.get("artworkUrl100")
+                if not base:
+                    continue
+                # Apple serves any size from the same path; 3000 px is their master size
+                hi = re.sub(r"/\d+x\d+(bb)?\.(jpg|png|webp)$", "/3000x3000bb.jpg", base)
+                add(hi, "Apple Podcasts", x.get("collectionName") or "", preview=base, size="up to 3000 px",
+                    fallback=base)
+    return out
 
 
 def _to_jpeg(data: bytes, max_px: int = 1400) -> bytes:

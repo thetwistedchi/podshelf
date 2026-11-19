@@ -285,6 +285,66 @@
     pf.addEventListener('input', upd); ef.addEventListener('input', upd);
   }
 
-  window.Podshelf = { open, act, edit, resetEdit, toggleDesc, play, closePlayer, namingPreview, toast,
+  // ---------------------------------------------------------- cover picker
+  let coversLoaded = false;
+  async function loadCovers(pid, force) {
+    if (coversLoaded && !force) return;
+    coversLoaded = true;
+    const grid = $('#cover-grid');
+    grid.innerHTML = '<p class="muted small">Searching…</p>';
+    try {
+      const q = $('#cover-q').value.trim();
+      const res = await api(`/api/podcasts/${pid}/covers?q=${encodeURIComponent(q)}`);
+      if (!res.options.length) { grid.innerHTML = '<p class="muted small">No covers found. Try another search.</p>'; return; }
+      grid.innerHTML = '';
+      res.options.forEach((o) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'cover-opt' + ((o.url === res.current || o.fallback === res.current) ? ' current' : '');
+        b.innerHTML = '<img alt="" loading="lazy"><span class="small"></span><span class="small muted"></span>';
+        $('img', b).src = o.preview;
+        $$('span', b)[0].textContent = o.title || '';
+        $$('span', b)[1].textContent = o.source + (o.size ? ' · ' + o.size : '');
+        b.onclick = () => chooseCover(pid, o.url, o.fallback, b);
+        grid.appendChild(b);
+      });
+    } catch (err) { grid.innerHTML = ''; toast(err.message, true); coversLoaded = false; }
+  }
+  async function chooseCover(pid, url, fallback, btn) {
+    if (!url) return toast('Enter an image URL first', true);
+    $$('.cover-opt').forEach((x) => x.classList.remove('current'));
+    if (btn) btn.classList.add('busy');
+    try {
+      await api(`/api/podcasts/${pid}/cover`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, fallback }) });
+      if (btn) { btn.classList.remove('busy'); btn.classList.add('current'); }
+      refreshCoverImages(pid);
+      toast('Cover saved. Files are being retagged in the background.');
+    } catch (err) { if (btn) btn.classList.remove('busy'); toast(err.message, true); }
+  }
+  async function uploadCover(pid) {
+    const f = $('#cover-file').files[0];
+    if (!f) return toast('Choose an image file first', true);
+    const fd = new FormData(); fd.append('file', f);
+    const r = await fetch(`/podcasts/${pid}/cover/upload`, { method: 'POST', body: fd, credentials: 'same-origin' });
+    location.href = r.url || location.href;
+  }
+  async function resetCover(pid) {
+    try { await api(`/api/podcasts/${pid}/cover/reset`, { method: 'POST' }); location.reload(); }
+    catch (err) { toast(err.message, true); }
+  }
+  async function coverAllEpisodes(pid, on) {
+    try {
+      await api(`/api/podcasts/${pid}/cover`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ all_episodes: on }) });
+      toast(on ? 'Every episode gets the podcast cover' : 'Episodes keep their own artwork');
+    } catch (err) { toast(err.message, true); }
+  }
+  function refreshCoverImages(pid) {
+    const t = Date.now();
+    $$(`img[src^="/podcasts/${pid}/cover"]`).forEach((img) => { img.src = `/podcasts/${pid}/cover?t=${t}`; });
+  }
+
+  window.Podshelf = { open, act, edit, loadCovers, chooseCover, uploadCover, resetCover, coverAllEpisodes, resetEdit, toggleDesc, play, closePlayer, namingPreview, toast,
                       watchQueuePage: () => (window._queuePage = true) };
 })();

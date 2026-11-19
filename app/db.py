@@ -79,6 +79,9 @@ MIGRATIONS = {
         "auth_pass": "TEXT NOT NULL DEFAULT ''",
         "split_mode": "TEXT NOT NULL DEFAULT 'none'",   # none|season|bonus|both
         "delete_played_days": "INTEGER NOT NULL DEFAULT -1",  # -1 = never
+        "cover_override": "TEXT",      # chosen cover URL, or 'upload'; NULL = feed image
+        "cover_all_episodes": "INTEGER NOT NULL DEFAULT 0",  # embed podcast cover in every episode
+        "cover_updated": "TEXT",
     },
     "episodes": {
         "played": "INTEGER NOT NULL DEFAULT 0",

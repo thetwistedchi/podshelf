@@ -18,6 +18,7 @@ Self-hosted podcast downloader built for Plex and Emby. It picks up the useful p
 - **Download window** and a global **bandwidth limit**.
 - **Premium feeds** with username/password (sent only to the feed's own server).
 - **Separate folders/albums** for seasons and bonus episodes, **tags/collections**, editable episode titles and numbers, display name per podcast.
+- **Cover picker**: choose artwork from Apple Podcasts (up to 3000 px) or the feed, paste an image URL or upload your own; optionally use it for every episode.
 - **Statistics**, **duplicate finder** (new duplicates are skipped automatically), **backup and restore** of the whole database.
 - Synthwave theme, login, works on mobile.
 
@@ -43,7 +44,7 @@ Self-hosted podcast downloader built for Plex and Emby. It picks up the useful p
 5. Apps → Discover Apps → ⋮ → **Install via YAML**, name `podshelf`, paste `docker-compose.yml` (with your user name and password filled in).
 6. Open `http://192.168.178.100:30080`.
 
-To update: push to GitHub, wait for the build, then click **Update** on the app in TrueNAS (or pull the image again).
+To update: push to GitHub, wait for the build, then pull the new image and restart the app (add `pull_policy: always` to the compose file so a restart pulls it automatically). Release tags like `v1.2.0` or `1.2.0` also publish a versioned image.
 
 ## Environment
 
