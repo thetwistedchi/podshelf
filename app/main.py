@@ -446,13 +446,91 @@ def delete_podcast(request: Request, pid: int, delete_files: str = Form(None)):
     return back("/")
 
 
+@app.get("/api/podcasts/{pid}/covers")
+def cover_options(pid: int, q: str = ""):
+    p = db.one("SELECT * FROM podcasts WHERE id=?", (pid,))
+    if not p:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    try:
+        return {"current": p["cover_override"] or p["image_url"], "all_episodes": bool(p["cover_all_episodes"]),
+                "custom": bool(p["cover_override"]), "options": feeds.cover_candidates(p, q or None)}
+    except Exception as e:
+        return JSONResponse({"error": f"Search failed: {e}"}, status_code=502)
+
+
+def _cover_changed(pid):
+    threading.Thread(target=downloader.retag_podcast, args=(pid,), daemon=True).start()
+
+
+@app.post("/api/podcasts/{pid}/cover")
+async def choose_cover(pid: int, request: Request):
+    data = await request.json()
+    p = db.one("SELECT * FROM podcasts WHERE id=?", (pid,))
+    if not p:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    if "all_episodes" in data and "url" not in data:
+        with db.tx() as c:
+            c.execute("UPDATE podcasts SET cover_all_episodes=? WHERE id=?", (1 if data["all_episodes"] else 0, pid))
+        _cover_changed(pid)
+        return {"ok": True}
+    url = (data.get("url") or "").strip()
+    if not url.lower().startswith(("http://", "https://")):
+        return JSONResponse({"error": "Image URL must start with http:// or https://"}, status_code=400)
+    err = None
+    for candidate in [u for u in (url, data.get("fallback")) if u]:
+        try:
+            with feeds.http_client(30) as c:
+                r = c.get(candidate)
+                r.raise_for_status()
+            feeds.write_cover(p, r.content, candidate)
+            with db.tx() as c:
+                c.execute("UPDATE podcasts SET cover_override=? WHERE id=?",
+                          (None if candidate == p["image_url"] else candidate, pid))
+            _cover_changed(pid)
+            return {"ok": True}
+        except Exception as e:
+            err = e
+    return JSONResponse({"error": f"Could not load that image: {err}"}, status_code=502)
+
+
+@app.post("/podcasts/{pid}/cover/upload")
+async def upload_cover(request: Request, pid: int, file: UploadFile = File(...)):
+    p = db.one("SELECT * FROM podcasts WHERE id=?", (pid,))
+    if not p:
+        return back("/")
+    data = await file.read()
+    if len(data) > 25 * 1024 * 1024:
+        flash(request, "Image is larger than 25 MB", "error")
+        return back(f"/podcasts/{pid}")
+    try:
+        feeds.write_cover(p, data, "upload")
+    except Exception as e:
+        flash(request, f"Cover upload failed: {e}", "error")
+        return back(f"/podcasts/{pid}")
+    with db.tx() as c:
+        c.execute("UPDATE podcasts SET cover_override='upload' WHERE id=?", (pid,))
+    _cover_changed(pid)
+    flash(request, "Cover uploaded. Files are being retagged in the background.")
+    return back(f"/podcasts/{pid}")
+
+
+@app.post("/api/podcasts/{pid}/cover/reset")
+def reset_cover(pid: int):
+    with db.tx() as c:
+        c.execute("UPDATE podcasts SET cover_override=NULL WHERE id=?", (pid,))
+    p = db.one("SELECT * FROM podcasts WHERE id=?", (pid,))
+    feeds.save_cover(p, force=True)
+    _cover_changed(pid)
+    return {"ok": True}
+
+
 @app.get("/podcasts/{pid}/cover")
 def cover(pid: int):
     p = db.one("SELECT * FROM podcasts WHERE id=?", (pid,))
     if p and p["folder"]:
         path = os.path.join(config.PODCAST_DIR, p["folder"], "cover.jpg")
         if os.path.isfile(path):
-            return FileResponse(path, headers={"Cache-Control": "max-age=3600"})
+            return FileResponse(path, headers={"Cache-Control": "no-cache"})
     if p and p["image_url"]:
         path = feeds.cached_image(p["image_url"])
         if path:

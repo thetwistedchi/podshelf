@@ -131,6 +131,7 @@
     <button class="tab" data-tab="ps-rules">Download rules</button>
     <button class="tab" data-tab="ps-ads">Ad skipping</button>
     <button class="tab" data-tab="ps-organize">Organize</button>
+    <button class="tab" data-tab="ps-cover" onclick="Podshelf.loadCovers({{ p.id }})">Cover</button>
     <button class="tab" data-tab="ps-premium">Premium feed</button>
   </div>
   <form method="post" action="/podcasts/{{ p.id }}/settings" class="stack">
@@ -177,6 +178,34 @@
           <option value="{{ v }}" {% if p.split_mode == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
         </select><small>Each folder becomes its own album in Plex/Emby. Uses the season and type the feed provides.</small></label>
         <label>Tags <input name="tags" value="{{ tags|join(', ') }}" placeholder="e.g. True Crime, Comedy"><small>Comma separated. Filter by tag on the start page.</small></label>
+      </div>
+    </section>
+
+    <section id="ps-cover" class="tab-panel stack" hidden data-pid="{{ p.id }}">
+      <div class="cover-head">
+        <img id="cover-current" src="/podcasts/{{ p.id }}/cover" alt="Current cover">
+        <div class="stack">
+          <p class="small muted">Pick artwork from Apple Podcasts or the feed, paste an image URL or upload your own. It's saved as <code>cover.jpg</code> and embedded into the files.</p>
+          <label class="check"><input type="checkbox" id="cover-all" {% if p.cover_all_episodes %}checked{% endif %}
+            onchange="Podshelf.coverAllEpisodes({{ p.id }}, this.checked)"> Use this cover for every episode (ignore per-episode artwork)</label>
+          {% if p.cover_override %}<button type="button" class="btn" onclick="Podshelf.resetCover({{ p.id }})">Back to feed cover</button>{% endif %}
+        </div>
+      </div>
+      <div class="row">
+        <input type="search" id="cover-q" value="{{ ptitle(p) }}" placeholder="Search Apple Podcasts"
+               onkeydown="if (event.key === 'Enter') { event.preventDefault(); Podshelf.loadCovers({{ p.id }}, true); }">
+        <button type="button" class="btn" onclick="Podshelf.loadCovers({{ p.id }}, true)">Search</button>
+      </div>
+      <div id="cover-grid" class="cover-grid"><p class="muted small">Loading…</p></div>
+      <div class="cols2">
+        <div class="row">
+          <input type="url" id="cover-url" placeholder="https://… image URL">
+          <button type="button" class="btn" onclick="Podshelf.chooseCover({{ p.id }}, document.getElementById('cover-url').value)">Use URL</button>
+        </div>
+        <div class="row">
+          <input type="file" id="cover-file" accept="image/*">
+          <button type="button" class="btn" onclick="Podshelf.uploadCover({{ p.id }})">Upload</button>
+        </div>
       </div>
     </section>
 

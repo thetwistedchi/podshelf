@@ -155,7 +155,7 @@ def target_path(p, ep, ext: str) -> str:
 
 def _cover_bytes(p, ep, client) -> bytes | None:
     folder_cover = os.path.join(feeds.podcast_dir(p), "cover.jpg")
-    use_podcast = db.get_setting("force_podcast_cover") == "1"
+    use_podcast = db.get_setting("force_podcast_cover") == "1" or bool(p["cover_all_episodes"])
     if ep["image_url"] and not use_podcast and ep["image_url"] != p["image_url"]:
         try:
             r = client.get(ep["image_url"], timeout=30)
