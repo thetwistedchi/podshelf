@@ -5,11 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Log in · Podshelf</title>
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/static/style.css?v=3">
+  <style>html,body{background:#0b0a1f;color:#eeeaff;margin:0}body{visibility:hidden;animation:ps-show 0s 2s forwards}@keyframes ps-show{to{visibility:visible}}img{max-width:100%;height:auto}.brand img{width:26px;height:26px}.brand.big img{width:36px;height:36px}.cover,.hero-cover{width:100%;aspect-ratio:1;object-fit:cover}[hidden]{display:none!important}</style>
+  <link rel="stylesheet" href="/static/style.css?v=6">
 </head>
 <body class="login-page">
   <form class="login card" method="post" action="/login">
-    <div class="brand big"><img src="/static/icon.svg" alt=""> Podshelf</div>
+    <div class="brand big"><img src="/static/icon.svg" alt="" width="36" height="36"> Podshelf</div>
     {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
     <label>Username <input name="username" autocomplete="username" required autofocus></label>
     <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
