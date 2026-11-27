@@ -345,6 +345,45 @@
     $$(`img[src^="/podcasts/${pid}/cover"]`).forEach((img) => { img.src = `/podcasts/${pid}/cover?t=${t}`; });
   }
 
-  window.Podshelf = { open, act, edit, loadCovers, chooseCover, uploadCover, resetCover, coverAllEpisodes, resetEdit, toggleDesc, play, closePlayer, namingPreview, toast,
+  // ---------------------------------------------------------- select + remove podcasts
+  let selecting = false;
+  const selected = new Set();
+  function selectMode(on) {
+    selecting = on;
+    document.body.classList.toggle('selecting', on);
+    $('#selectbar').hidden = !on;
+    const t = $('#select-toggle'); if (t) t.hidden = on;
+    if (!on) selectNone();
+  }
+  function updateSelection() {
+    $$('#podcast-grid .tile').forEach((t) => t.classList.toggle('selected', selected.has(+t.dataset.podcast)));
+    $('#select-count').textContent = `${selected.size} selected`;
+    $('#remove-selected').disabled = !selected.size;
+  }
+  function selectAll() { $$('#podcast-grid .tile').forEach((t) => selected.add(+t.dataset.podcast)); updateSelection(); }
+  function selectNone() { selected.clear(); if ($('#select-count')) updateSelection(); }
+  document.addEventListener('click', (e) => {
+    const tile = e.target.closest('#podcast-grid .tile');
+    if (!tile || !selecting) return;
+    e.preventDefault();
+    const id = +tile.dataset.podcast;
+    selected.has(id) ? selected.delete(id) : selected.add(id);
+    updateSelection();
+  });
+  function confirmRemove() {
+    const tiles = $$('#podcast-grid .tile').filter((t) => selected.has(+t.dataset.podcast));
+    if (!tiles.length) return;
+    $('#remove-title').textContent = tiles.length === 1 ? `Remove “${tiles[0].dataset.title}”?` : `Remove ${tiles.length} podcasts?`;
+    $('#remove-ids').innerHTML = tiles.map((t) => `<input type="hidden" name="ids" value="${+t.dataset.podcast}">`).join('');
+    const list = $('#remove-list'); list.innerHTML = '';
+    tiles.slice(0, 12).forEach((t) => { const li = document.createElement('li'); li.textContent = t.dataset.title; list.appendChild(li); });
+    if (tiles.length > 12) { const li = document.createElement('li'); li.className = 'muted'; li.textContent = `and ${tiles.length - 12} more`; list.appendChild(li); }
+    $('#remove-file-count').textContent = tiles.reduce((n, t) => n + (+t.dataset.files || 0), 0);
+    $('#remove-files').checked = false;
+    open('remove-dialog');
+  }
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && selecting && !$('dialog[open]')) selectMode(false); });
+
+  window.Podshelf = { open, act, edit, selectMode, selectAll, selectNone, confirmRemove, loadCovers, chooseCover, uploadCover, resetCover, coverAllEpisodes, resetEdit, toggleDesc, play, closePlayer, namingPreview, toast,
                       watchQueuePage: () => (window._queuePage = true) };
 })();
