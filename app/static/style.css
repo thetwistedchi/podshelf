@@ -369,3 +369,20 @@ label.inline input { width: 14px; height: 14px; }
 .cover-opt.current { border-color: var(--pink); box-shadow: 0 0 16px rgb(255 79 216 / .4); }
 .cover-opt.busy { opacity: .5; pointer-events: none; }
 @media (max-width: 520px) { .cover-head img { width: 84px; height: 84px; } }
+
+/* ---------- select & remove podcasts ---------- */
+.select-box { display: none; position: absolute; z-index: 2; bottom: .5rem; right: .5rem; width: 26px; height: 26px;
+  border-radius: 8px; border: 2px solid #fff; background: rgb(11 10 31 / .6); box-shadow: 0 1px 6px rgb(0 0 0 / .4); }
+body.selecting .select-box { display: block; }
+body.selecting .tile { cursor: pointer; }
+body.selecting .tile:hover { transform: none; }
+.tile.selected { border-color: var(--pink); box-shadow: 0 0 0 2px var(--pink), 0 0 24px rgb(255 79 216 / .35); }
+.tile.selected .select-box { background: var(--grad); border-color: transparent; }
+.tile.selected .select-box::after { content: "✓"; color: #fff; font-weight: 800; display: grid; place-items: center; height: 100%; }
+.selectbar { position: fixed; z-index: 25; left: 50%; transform: translateX(-50%); bottom: 16px; display: flex; gap: .5rem;
+  align-items: center; flex-wrap: wrap; justify-content: center; padding: .6rem .8rem; border-radius: 14px;
+  background: var(--surface); border: 1px solid rgb(157 92 255 / .5); box-shadow: 0 10px 40px rgb(0 0 0 / .5);
+  width: max-content; max-width: calc(100vw - 32px); }
+.selectbar strong { margin-right: .4rem; }
+body.selecting main { padding-bottom: 7rem; }
+.remove-list { margin: 0; padding-left: 1.2rem; max-height: 220px; overflow: auto; }

@@ -8,6 +8,7 @@
   <div class="actions">
     {% if podcasts %}
     <form method="post" action="/podcasts/refresh-all"><button class="btn">Check all feeds</button></form>
+    <button class="btn" type="button" id="select-toggle" onclick="Podshelf.selectMode(true)">Select</button>
     {% endif %}
     <button class="btn primary" onclick="Podshelf.open('add-dialog')">+ Add podcast</button>
   </div>
@@ -27,10 +28,12 @@
   <button class="btn primary" onclick="Podshelf.open('add-dialog')">+ Add your first podcast</button>
 </div>
 {% else %}
-<div class="grid">
+<div class="grid" id="podcast-grid">
   {% for p in podcasts %}
-  <a class="tile {% if not p.active %}inactive{% endif %}" href="/podcasts/{{ p.id }}" data-podcast="{{ p.id }}">
+  <a class="tile {% if not p.active %}inactive{% endif %}" href="/podcasts/{{ p.id }}" data-podcast="{{ p.id }}"
+     data-title="{{ ptitle(p) }}" data-files="{{ p.done }}">
     <div class="cover-wrap">
+      <span class="select-box" aria-hidden="true"></span>
       <img class="cover" src="/podcasts/{{ p.id }}/cover" alt="" loading="lazy">
       {% if p.id in refreshing %}<span class="chip info corner refreshing">Checking…</span>
       {% elif p.last_error %}<span class="chip bad corner" title="{{ p.last_error }}">Feed error</span>
@@ -50,6 +53,25 @@
   {% endfor %}
 </div>
 {% endif %}
+
+<div class="selectbar" id="selectbar" hidden>
+  <strong id="select-count">0 selected</strong>
+  <button class="btn" type="button" onclick="Podshelf.selectAll()">Select all</button>
+  <button class="btn" type="button" onclick="Podshelf.selectNone()">Select none</button>
+  <button class="btn danger" type="button" id="remove-selected" onclick="Podshelf.confirmRemove()" disabled>Remove…</button>
+  <button class="btn" type="button" onclick="Podshelf.selectMode(false)">Done</button>
+</div>
+
+<dialog id="remove-dialog" class="dialog">
+  <div class="dialog-head"><h2 id="remove-title">Remove podcasts?</h2><button class="x" onclick="this.closest('dialog').close()" aria-label="Close">×</button></div>
+  <form method="post" action="/podcasts/remove" class="stack" id="remove-form">
+    <div id="remove-ids"></div>
+    <ul class="remove-list small" id="remove-list"></ul>
+    <label class="check"><input type="checkbox" name="delete_files" id="remove-files"> Also delete the <span id="remove-file-count">0</span> downloaded files</label>
+    <p class="small muted">Without this, the files stay in the podcast folders and only Podshelf forgets the podcasts.</p>
+    <div class="actions end"><button type="button" class="btn" onclick="this.closest('dialog').close()">Cancel</button><button class="btn danger">Remove</button></div>
+  </form>
+</dialog>
 
 <dialog id="add-dialog" class="dialog wide">
   <div class="dialog-head">

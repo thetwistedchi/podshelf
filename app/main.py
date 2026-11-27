@@ -439,25 +439,61 @@ def retag(request: Request, pid: int):
     return back(f"/podcasts/{pid}")
 
 
-@app.post("/podcasts/{pid}/delete")
-def delete_podcast(request: Request, pid: int, delete_files: str = Form(None)):
+def remove_podcast(pid: int, delete_files: bool) -> str | None:
+    """Remove a podcast from Podshelf; optionally delete its downloaded files. Returns its title."""
     p = db.one("SELECT * FROM podcasts WHERE id=?", (pid,))
     if not p:
-        return back("/")
+        return None
+    for ep in db.query("SELECT id FROM episodes WHERE podcast_id=? AND status='downloading'", (pid,)):
+        downloader.cancel(ep["id"])
     if delete_files:
         for ep in db.query("SELECT id FROM episodes WHERE podcast_id=? AND file_path IS NOT NULL", (pid,)):
             downloader.delete_file(ep["id"])
-        cover = os.path.join(config.PODCAST_DIR, p["folder"] or "", "cover.jpg")
-        if p["folder"] and os.path.isfile(cover):
-            os.remove(cover)
-        try:
-            os.rmdir(os.path.join(config.PODCAST_DIR, p["folder"]))
-        except (OSError, TypeError):
-            pass
+        if p["folder"]:
+            root = os.path.join(config.PODCAST_DIR, p["folder"])
+            # only remove what Podshelf put there: covers, leftover partial files, then empty folders
+            for dirpath, dirnames, filenames in os.walk(root, topdown=False):
+                for f in filenames:
+                    if f == "cover.jpg" or (f.startswith(".podshelf-") and f.endswith(".part")):
+                        try:
+                            os.remove(os.path.join(dirpath, f))
+                        except OSError:
+                            pass
+                try:
+                    os.rmdir(dirpath)
+                except OSError:
+                    pass  # not empty: files Podshelf does not know about stay
     with db.tx() as c:
         c.execute("DELETE FROM episodes WHERE podcast_id=?", (pid,))
+        c.execute("DELETE FROM podcast_tags WHERE podcast_id=?", (pid,))
         c.execute("DELETE FROM podcasts WHERE id=?", (pid,))
-    flash(request, f"Removed “{feeds.ptitle(p)}”")
+    return feeds.ptitle(p)
+
+
+@app.post("/podcasts/{pid}/delete")
+def delete_podcast(request: Request, pid: int, delete_files: str = Form(None)):
+    title = remove_podcast(pid, bool(delete_files))
+    if title:
+        flash(request, f"Removed “{title}”" + (" and its files" if delete_files else ""))
+    return back("/")
+
+
+@app.post("/podcasts/remove")
+async def remove_podcasts(request: Request):
+    form = await request.form()
+    ids = []
+    for v in form.getlist("ids"):
+        try:
+            ids.append(int(v))
+        except ValueError:
+            pass
+    delete_files = bool(form.get("delete_files"))
+    removed = [t for t in (remove_podcast(pid, delete_files) for pid in ids) if t]
+    if removed:
+        flash(request, f"Removed {len(removed)} podcast{'s' if len(removed) != 1 else ''}"
+                       + (" and their files" if delete_files else ""))
+    else:
+        flash(request, "Nothing selected", "error")
     return back("/")
 
 
