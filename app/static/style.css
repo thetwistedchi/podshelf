@@ -13,6 +13,7 @@
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {
+  visibility: visible; animation: none;  /* page was hidden until this stylesheet applied */
   margin: 0; color: var(--text); min-height: 100vh;
   background:
     radial-gradient(1000px 500px at 85% -10%, rgb(157 92 255 / .18), transparent 60%),

@@ -5,11 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Podshelf{% endblock %}</title>
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/static/style.css?v=5">
+  <style>html,body{background:#0b0a1f;color:#eeeaff;margin:0}body{visibility:hidden;animation:ps-show 0s 2s forwards}@keyframes ps-show{to{visibility:visible}}img{max-width:100%;height:auto}.brand img{width:26px;height:26px}.brand.big img{width:36px;height:36px}.cover,.hero-cover{width:100%;aspect-ratio:1;object-fit:cover}[hidden]{display:none!important}</style>
+  <link rel="stylesheet" href="/static/style.css?v=6">
 </head>
 <body>
 <header class="topbar">
-  <a class="brand" href="/"><img src="/static/icon.svg" alt=""> Podshelf</a>
+  <a class="brand" href="/"><img src="/static/icon.svg" alt="" width="26" height="26"> Podshelf</a>
   <nav>
     <a href="/" class="{{ 'active' if request.url.path == '/' or request.url.path.startswith('/podcasts') }}">Podcasts</a>
     <a href="/queue" class="{{ 'active' if request.url.path.startswith('/queue') }}">Downloads
