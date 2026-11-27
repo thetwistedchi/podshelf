@@ -488,6 +488,48 @@ def queue(eid: int, pinned=True):
     feeds.wake_downloads.set()
 
 
+def queue_latest(pid: int, replace: bool = False) -> int:
+    """Queue the newest episodes this podcast should have, following its keep setting
+    (keep newest N, 0 = all), keep-for-days, filters and duplicate detection.
+    replace=True also downloads episodes again whose files already exist."""
+    p = db.one("SELECT * FROM podcasts WHERE id=?", (pid,))
+    if not p:
+        return 0
+    wanted = []
+    for ep in db.query("SELECT * FROM episodes WHERE podcast_id=? ORDER BY pub_date DESC, id DESC", (pid,)):
+        if (ep["skip_reason"] or "").startswith(("duplicate", "too short", "too long")):
+            continue  # rejected before; would only be rejected again
+        if feeds.filter_reason(p, dict(ep)):
+            continue
+        wanted.append(ep)
+        if p["keep_count"] and len(wanted) >= p["keep_count"]:
+            break
+    n = 0
+    for ep in wanted:
+        if ep["status"] in ("queued", "downloading"):
+            continue
+        if ep["status"] == "done":
+            if not replace:
+                continue
+            delete_file(ep["id"], status="new")
+        queue(ep["id"], pinned=bool(ep["pinned"]))
+        n += 1
+    return n
+
+
+def refresh_and_queue_latest(pids, replace: bool = False):
+    """Background job: check each feed for new episodes first, then queue."""
+    total = 0
+    for pid in pids:
+        try:
+            feeds.refresh_podcast(pid)
+            total += queue_latest(pid, replace)
+        except Exception as e:
+            log.warning("re-download for podcast %s failed: %s", pid, e)
+    log.info("re-download: queued %d episodes for %d podcasts", total, len(pids))
+    return total
+
+
 def retag_podcast(pid: int):
     """Re-apply naming, folders, tags and covers to every downloaded file."""
     p = db.one("SELECT * FROM podcasts WHERE id=?", (pid,))
