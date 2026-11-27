@@ -1,5 +1,6 @@
 """Tags written so Plex (Music library) and Emby show one album per podcast,
-episodes sorted chronologically by track number, each with artwork."""
+episodes sorted chronologically by track number, each with artwork and its
+release date."""
 import base64
 import logging
 import os
@@ -7,7 +8,7 @@ import re
 
 import mutagen
 from mutagen.flac import FLAC, Picture
-from mutagen.id3 import (ID3, APIC, COMM, TALB, TCON, TDRC, TIT2, TPE1, TPE2, TRCK,
+from mutagen.id3 import (ID3, APIC, COMM, TALB, TCON, TDRC, TDRL, TIT2, TPE1, TPE2, TRCK,
                          ID3NoHeaderError)
 from mutagen.mp4 import MP4, MP4Cover
 
@@ -23,21 +24,22 @@ def _mime(data: bytes) -> str:
     return "image/png" if data[:8] == b"\x89PNG\r\n\x1a\n" else "image/jpeg"
 
 
-def tag_file(path: str, *, album: str, title: str, track: int, year: str | None,
-             description: str = "", cover: bytes | None = None, strip_date=True):
+def tag_file(path: str, *, album: str, title: str, track: int, date: str | None,
+             description: str = "", cover: bytes | None = None):
+    """date: release date as YYYY-MM-DD (always written when known)."""
     ext = os.path.splitext(path)[1].lower()
     if ext == ".mp3":
-        _mp3(path, album, title, track, year, description, cover, strip_date)
+        _mp3(path, album, title, track, date, description, cover)
     elif ext in (".m4a", ".m4b", ".mp4", ".aac") and _is_mp4(path):
-        _mp4(path, album, title, track, year, description, cover, strip_date)
+        _mp4(path, album, title, track, date, description, cover)
     elif ext == ".flac":
-        _flac(path, album, title, track, year, cover, strip_date)
+        _flac(path, album, title, track, date, cover)
     elif ext in (".ogg", ".opus", ".oga"):
-        _ogg(path, album, title, track, year, cover, strip_date)
+        _ogg(path, album, title, track, date, cover)
     else:
         f = mutagen.File(path)
         if ext == ".aac" or (f is not None and type(f).__name__ in ("MP3", "EasyMP3")):
-            _mp3(path, album, title, track, year, description, cover, strip_date)
+            _mp3(path, album, title, track, date, description, cover)
         else:
             log.info("no tagging for %s", path)
 
@@ -47,7 +49,7 @@ def _is_mp4(path):
         return fh.read(12)[4:8] == b"ftyp"
 
 
-def _mp3(path, album, title, track, year, desc, cover, strip_date):
+def _mp3(path, album, title, track, date, desc, cover):
     try:
         t = ID3(path)
     except ID3NoHeaderError:
@@ -63,18 +65,19 @@ def _mp3(path, album, title, track, year, desc, cover, strip_date):
     t.add(TCON(encoding=3, text="Podcast"))
     for fid in ("TDRC", "TYER", "TDAT", "TIME", "TORY", "TDOR", "TDRL"):
         t.delall(fid)
-    if year and not strip_date:
-        t.add(TDRC(encoding=3, text=year))
+    if date:
+        t.add(TDRC(encoding=3, text=date))   # recording/release date, read by Plex, Emby and players
+        t.add(TDRL(encoding=3, text=date))   # release time
     if desc:
         t.delall("COMM")
         t.add(COMM(encoding=3, lang="eng", desc="", text=_plain(desc)))
     if cover:
         t.delall("APIC")
         t.add(APIC(encoding=3, mime=_mime(cover), type=3, desc="Cover", data=cover))
-    t.save(path, v2_version=3)
+    t.save(path, v2_version=4)  # v2.3 would cut the full date down to TYER/TDAT
 
 
-def _mp4(path, album, title, track, year, desc, cover, strip_date):
+def _mp4(path, album, title, track, date, desc, cover):
     t = MP4(path)
     if t.tags is None:
         t.add_tags()
@@ -86,10 +89,10 @@ def _mp4(path, album, title, track, year, desc, cover, strip_date):
     t["\xa9gen"] = ["Podcast"]
     for k in ("disk", "cpil", "soaa", "soal", "soar"):
         t.pop(k, None)
-    if strip_date:
+    if date:
+        t["\xa9day"] = [date]
+    else:
         t.pop("\xa9day", None)
-    elif year:
-        t["\xa9day"] = [year]
     if desc:
         t["desc"] = [_plain(desc, 250)]
     if cover:
@@ -98,7 +101,7 @@ def _mp4(path, album, title, track, year, desc, cover, strip_date):
     t.save()
 
 
-def _vorbis_common(t, album, title, track, year, strip_date):
+def _vorbis_common(t, album, title, track, date):
     t["album"] = album
     t["artist"] = album
     t["albumartist"] = album
@@ -108,11 +111,10 @@ def _vorbis_common(t, album, title, track, year, strip_date):
     for k in ("discnumber", "compilation"):
         if k in t:
             del t[k]
-    if strip_date:
-        if "date" in t:
-            del t["date"]
-    elif year:
-        t["date"] = year
+    if date:
+        t["date"] = date
+    elif "date" in t:
+        del t["date"]
 
 
 def _picture(cover):
@@ -124,22 +126,22 @@ def _picture(cover):
     return pic
 
 
-def _flac(path, album, title, track, year, cover, strip_date):
+def _flac(path, album, title, track, date, cover):
     t = FLAC(path)
-    _vorbis_common(t, album, title, track, year, strip_date)
+    _vorbis_common(t, album, title, track, date)
     if cover:
         t.clear_pictures()
         t.add_picture(_picture(cover))
     t.save()
 
 
-def _ogg(path, album, title, track, year, cover, strip_date):
+def _ogg(path, album, title, track, date, cover):
     t = mutagen.File(path)
     if t is None:
         return
     if t.tags is None:
         t.add_tags()
-    _vorbis_common(t, album, title, track, year, strip_date)
+    _vorbis_common(t, album, title, track, date)
     if cover:
         t["metadata_block_picture"] = [base64.b64encode(_picture(cover).write()).decode()]
     t.save()

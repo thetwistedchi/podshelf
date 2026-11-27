@@ -21,7 +21,6 @@ DEFAULT_SETTINGS = {
     "default_initial": "10",
     "default_max_new": "3",
     "parallel_downloads": "3",
-    "strip_date_tag": "1",
     "force_podcast_cover": "0",
     # download window (hours 0-23, empty = always) and bandwidth (KB/s, 0 = unlimited)
     "window_start": "",
@@ -36,7 +35,10 @@ DEFAULT_SETTINGS = {
 }
 
 # settings that are checkboxes in the UI
-BOOL_SETTINGS = {"strip_date_tag", "force_podcast_cover"}
+BOOL_SETTINGS = {"force_podcast_cover"}
+
+# bump to re-tag every downloaded file once after an update that changes tags
+TAG_VERSION = "2"
 # settings that must be non-negative integers
 INT_SETTINGS = {"default_keep", "default_initial", "default_check_hours", "default_max_new",
                 "parallel_downloads", "bandwidth_kbps", "sync_minutes"}

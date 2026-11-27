@@ -180,10 +180,9 @@ def tag_episode(ep, p=None, client=None):
             album=album_for(p, ep),
             title=ep_title(ep),
             track=episode_number(ep),
-            year=(ep["pub_date"] or "")[:4] or None,
+            date=(ep["pub_date"] or "")[:10] or None,
             description=ep["description"] or "",
             cover=_cover_bytes(p, ep, client),
-            strip_date=db.get_setting("strip_date_tag") == "1",
         )
     finally:
         if own:

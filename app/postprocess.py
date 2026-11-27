@@ -191,7 +191,7 @@ def embed_chapters(path: str, chapters: list[dict], length: int | None):
                           sub_frames=[TIT2(encoding=3, text=ch["title"] or f"Chapter {i + 1}")]))
         tags.add(CTOC(element_id="toc", flags=CTOCFlags.TOP_LEVEL | CTOCFlags.ORDERED,
                       child_element_ids=ids, sub_frames=[TIT2(encoding=3, text="Chapters")]))
-        tags.save(path, v2_version=3)
+        tags.save(path, v2_version=4)
     elif ext in (".m4a", ".m4b", ".mp4") and FFMPEG:
         meta = ";FFMETADATA1\n"
         for i, ch in enumerate(chapters):
