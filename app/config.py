@@ -39,7 +39,7 @@ DEFAULT_SETTINGS = {
 BOOL_SETTINGS = {"force_podcast_cover", "ad_chapters_all"}
 
 # bump to re-tag every downloaded file once after an update that changes tags
-TAG_VERSION = "2"
+TAG_VERSION = "3"
 # settings that must be non-negative integers
 INT_SETTINGS = {"default_keep", "default_initial", "default_check_hours", "default_max_new",
                 "parallel_downloads", "bandwidth_kbps", "sync_minutes"}
