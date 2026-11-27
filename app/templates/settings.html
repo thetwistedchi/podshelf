@@ -17,7 +17,9 @@
         <small><code>{date}</code> <code>{title}</code> <code>{num}</code> <code>{year}</code> <code>{month}</code> <code>{day}</code> <code>{podcast}</code> <code>{author}</code></small></label>
     </div>
     <div class="preview">Preview: <code id="naming-preview">{{ sample }}</code></div>
-    <p class="small muted">Applies to new downloads. <code>{date} - {title}</code> keeps files sorted by date in any file browser. Plex and Emby sort by the track number tag, which is always the chronological episode number.</p>
+    <p class="small muted">Applies to new downloads; use the button to rename existing files too. Include <code>{date}</code> (for example <code>{num} - {date} - {title}</code>): the release date in the file name is what players can show and sort by, since the year tag stays empty to keep one album per podcast in Plex. Plex and Emby sort by the track number tag, which is always the chronological episode number.</p>
+    {% if '{date}' not in s.episode_format %}<div class="flash error">The episode file name has no <code>{date}</code>, so players can't read the release date from it.</div>{% endif %}
+    <div class="actions"><button class="btn" formaction="/settings/apply-naming" onclick="return confirm('Save and rename all downloaded files to this scheme?')">Save &amp; rename all files</button></div>
   </section>
 
   <section class="card">
