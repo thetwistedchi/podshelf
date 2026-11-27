@@ -410,6 +410,29 @@ def refresh_all(request: Request):
     return back("/")
 
 
+def _redownload(request, pids, replace):
+    threading.Thread(target=downloader.refresh_and_queue_latest, args=(pids, replace), daemon=True).start()
+    what = "1 podcast" if len(pids) == 1 else f"{len(pids)} podcasts"
+    flash(request, f"Checking {what} and queueing the episodes they should keep"
+                   + (", replacing existing files" if replace else "") + ". See Downloads for progress.")
+
+
+@app.post("/podcasts/redownload")
+async def redownload_many(request: Request):
+    form = await request.form()
+    ids = [int(v) for v in form.getlist("ids") if str(v).isdigit()]
+    if not ids:  # nothing selected = all podcasts
+        ids = [r["id"] for r in db.query("SELECT id FROM podcasts ORDER BY id")]
+    _redownload(request, ids, bool(form.get("replace")))
+    return back("/")
+
+
+@app.post("/podcasts/{pid}/redownload")
+def redownload_one(request: Request, pid: int, replace: str = Form(None)):
+    _redownload(request, [pid], bool(replace))
+    return back(f"/podcasts/{pid}")
+
+
 @app.post("/podcasts/{pid}/latest")
 def download_latest(request: Request, pid: int, n: int = Form(10)):
     rows = db.query("SELECT id FROM episodes WHERE podcast_id=? ORDER BY pub_date DESC LIMIT ?", (pid, n))

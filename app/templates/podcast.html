@@ -38,6 +38,7 @@
       <details class="menu">
         <summary class="btn">More ▾</summary>
         <div class="menu-list">
+          <button type="button" onclick="Podshelf.open('redownload-dialog')">Download what it should keep…</button>
           <form method="post" action="/podcasts/{{ p.id }}/all"
                 onsubmit="return confirm('Download all {{ stats.values()|sum - stats.get('done', 0) }} remaining episodes? The podcast will be set to keep all episodes.')">
             <button>Download all</button>
@@ -223,6 +224,15 @@
     </section>
 
     <div class="actions end"><button type="button" class="btn" onclick="this.closest('dialog').close()">Cancel</button><button class="btn primary">Save</button></div>
+  </form>
+</dialog>
+
+<dialog id="redownload-dialog" class="dialog">
+  <div class="dialog-head"><h2>Download what this podcast should keep</h2><button class="x" onclick="this.closest('dialog').close()" aria-label="Close">×</button></div>
+  <form method="post" action="/podcasts/{{ p.id }}/redownload" class="stack">
+    <p class="small muted">Checks the feed, then queues the {% if p.keep_count %}newest {{ p.keep_count }}{% else %}all{% endif %} episodes{% if p.keep_days %} from the last {{ p.keep_days }} days{% endif %} that match this podcast's download rules. Missing or removed episodes are downloaded again.</p>
+    <label class="check"><input type="checkbox" name="replace"> Also replace files that are already downloaded</label>
+    <div class="actions end"><button type="button" class="btn" onclick="this.closest('dialog').close()">Cancel</button><button class="btn primary">Start</button></div>
   </form>
 </dialog>
 

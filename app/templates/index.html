@@ -8,6 +8,7 @@
   <div class="actions">
     {% if podcasts %}
     <form method="post" action="/podcasts/refresh-all"><button class="btn">Check all feeds</button></form>
+    <button class="btn" type="button" onclick="Podshelf.confirmRedownload(true)">Download latest for all…</button>
     <button class="btn" type="button" id="select-toggle" onclick="Podshelf.selectMode(true)">Select</button>
     {% endif %}
     <button class="btn primary" onclick="Podshelf.open('add-dialog')">+ Add podcast</button>
@@ -58,9 +59,20 @@
   <strong id="select-count">0 selected</strong>
   <button class="btn" type="button" onclick="Podshelf.selectAll()">Select all</button>
   <button class="btn" type="button" onclick="Podshelf.selectNone()">Select none</button>
+  <button class="btn" type="button" id="redownload-selected" onclick="Podshelf.confirmRedownload(false)" disabled>Download latest…</button>
   <button class="btn danger" type="button" id="remove-selected" onclick="Podshelf.confirmRemove()" disabled>Remove…</button>
   <button class="btn" type="button" onclick="Podshelf.selectMode(false)">Done</button>
 </div>
+
+<dialog id="redownload-dialog" class="dialog">
+  <div class="dialog-head"><h2 id="redownload-title">Download latest episodes</h2><button class="x" onclick="this.closest('dialog').close()" aria-label="Close">×</button></div>
+  <form method="post" action="/podcasts/redownload" class="stack" id="redownload-form">
+    <div id="redownload-ids"></div>
+    <p class="small muted">Checks each feed, then queues the episodes each podcast should keep: the newest N from its "Keep newest episodes" setting (all if set to 0), within "Keep for days" and matching its download rules. Missing or removed episodes are downloaded again.</p>
+    <label class="check"><input type="checkbox" name="replace" id="redownload-replace"> Also replace files that are already downloaded</label>
+    <div class="actions end"><button type="button" class="btn" onclick="this.closest('dialog').close()">Cancel</button><button class="btn primary">Start</button></div>
+  </form>
+</dialog>
 
 <dialog id="remove-dialog" class="dialog">
   <div class="dialog-head"><h2 id="remove-title">Remove podcasts?</h2><button class="x" onclick="this.closest('dialog').close()" aria-label="Close">×</button></div>

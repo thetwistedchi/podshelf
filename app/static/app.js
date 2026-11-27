@@ -359,6 +359,7 @@
     $$('#podcast-grid .tile').forEach((t) => t.classList.toggle('selected', selected.has(+t.dataset.podcast)));
     $('#select-count').textContent = `${selected.size} selected`;
     $('#remove-selected').disabled = !selected.size;
+    $('#redownload-selected').disabled = !selected.size;
   }
   function selectAll() { $$('#podcast-grid .tile').forEach((t) => selected.add(+t.dataset.podcast)); updateSelection(); }
   function selectNone() { selected.clear(); if ($('#select-count')) updateSelection(); }
@@ -382,8 +383,17 @@
     $('#remove-files').checked = false;
     open('remove-dialog');
   }
+  function confirmRedownload(all) {
+    const ids = all ? [] : [...selected];
+    if (!all && !ids.length) return;
+    $('#redownload-title').textContent = all ? 'Download latest for all podcasts'
+      : `Download latest for ${ids.length} podcast${ids.length === 1 ? '' : 's'}`;
+    $('#redownload-ids').innerHTML = ids.map((id) => `<input type="hidden" name="ids" value="${+id}">`).join('');
+    $('#redownload-replace').checked = false;
+    open('redownload-dialog');
+  }
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && selecting && !$('dialog[open]')) selectMode(false); });
 
-  window.Podshelf = { open, act, edit, selectMode, selectAll, selectNone, confirmRemove, loadCovers, chooseCover, uploadCover, resetCover, coverAllEpisodes, resetEdit, toggleDesc, play, closePlayer, namingPreview, toast,
+  window.Podshelf = { open, act, edit, confirmRedownload, selectMode, selectAll, selectNone, confirmRemove, loadCovers, chooseCover, uploadCover, resetCover, coverAllEpisodes, resetEdit, toggleDesc, play, closePlayer, namingPreview, toast,
                       watchQueuePage: () => (window._queuePage = true) };
 })();
