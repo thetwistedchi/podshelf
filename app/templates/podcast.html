@@ -17,7 +17,7 @@
       <span class="chip">Checks every {{ p.check_hours }} h</span>
       {% if disk %}<span class="chip">{{ disk|size }}</span>{% endif %}
       {% if p.include_filter or p.exclude_filter or p.min_minutes or p.max_minutes %}<span class="chip info">Filters on</span>{% endif %}
-      {% if p.trim_start or p.trim_end or p.cut_ad_chapters %}<span class="chip info">Ad skipping on</span>{% endif %}
+      {% if p.trim_start or p.trim_end or p.cut_ad_chapters or ad_chapters_all %}<span class="chip info">Ad skipping on</span>{% endif %}
       {% if p.auth_user %}<span class="chip info">Premium feed</span>{% endif %}
       {% if p.delete_played_days >= 0 %}<span class="chip">Deletes played{% if p.delete_played_days %} after {{ p.delete_played_days }} d{% endif %}</span>{% endif %}
       {% if not p.auto_download %}<span class="chip warn">Auto download off</span>{% endif %}
@@ -165,7 +165,12 @@
         <label>Cut from start (seconds) <input name="trim_start" type="number" min="0" value="{{ p.trim_start }}"><small>Pre-roll ads / intro. 0 = off.</small></label>
         <label>Cut from end (seconds) <input name="trim_end" type="number" min="0" value="{{ p.trim_end }}"><small>Post-roll ads / outro. 0 = off.</small></label>
       </div>
+      {% if ad_chapters_all %}
+      <label class="check"><input type="checkbox" checked disabled> Remove chapters that are marked as ads <small class="muted">(on for all podcasts, change in Settings)</small></label>
+      <input type="hidden" name="cut_ad_chapters" value="{{ 'on' if p.cut_ad_chapters else '' }}">
+      {% else %}
       <label class="check"><input type="checkbox" name="cut_ad_chapters" {% if p.cut_ad_chapters %}checked{% endif %}> Remove chapters that are marked as ads</label>
+      {% endif %}
       <p class="small muted">Chapter titles matching: <code>{{ ad_keywords }}</code> (change in Settings). Mid-roll ads without chapters can't be detected reliably.</p>
     </section>
 

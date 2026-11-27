@@ -27,6 +27,7 @@ DEFAULT_SETTINGS = {
     "window_end": "",
     "bandwidth_kbps": "0",
     # default ad chapter keywords (whole words, case-insensitive)
+    "ad_chapters_all": "0",   # remove ad chapters for every podcast
     "ad_keywords": "werbung, anzeige, sponsor, sponsored, ad, ads, advertisement, promo, commercial",
     # media server sync
     "sync_minutes": "15",
@@ -35,7 +36,7 @@ DEFAULT_SETTINGS = {
 }
 
 # settings that are checkboxes in the UI
-BOOL_SETTINGS = {"force_podcast_cover"}
+BOOL_SETTINGS = {"force_podcast_cover", "ad_chapters_all"}
 
 # bump to re-tag every downloaded file once after an update that changes tags
 TAG_VERSION = "2"

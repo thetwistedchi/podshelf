@@ -311,6 +311,7 @@ def podcast(request: Request, pid: int, status: str = "all", q: str = "", page: 
     return render(request, "podcast.html", p=p, episodes=eps, nums=nums, stats=stats, disk=disk,
                   unplayed=unplayed, tags=tags_by_podcast().get(pid, []), ffmpeg=bool(postprocess.FFMPEG),
                   ad_keywords=db.get_setting("ad_keywords"),
+                  ad_chapters_all=db.get_setting("ad_chapters_all") == "1",
                   status=status, q=q, page=page, pages=pages, total=total, order=order,
                   refreshing=feeds.is_refreshing(pid))
 

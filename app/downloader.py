@@ -279,12 +279,13 @@ def process(eid: int, client) -> bool:
 
     chapters = _chapters_for(ep, client, True)
     cut_secs = 0
-    if length and (p["trim_start"] or p["trim_end"] or p["cut_ad_chapters"]):
+    cut_chapters = bool(p["cut_ad_chapters"]) or db.get_setting("ad_chapters_all") == "1"
+    if length and (p["trim_start"] or p["trim_end"] or cut_chapters):
         keywords = db.get_setting("ad_keywords")
         keep = postprocess.plan_cuts(length, chapters, p["trim_start"], p["trim_end"],
-                                     bool(p["cut_ad_chapters"]), keywords)
+                                     cut_chapters, keywords)
         if keep and postprocess.cut(path, keep):
-            is_ad = postprocess.ad_matcher(keywords) if p["cut_ad_chapters"] else (lambda t: False)
+            is_ad = postprocess.ad_matcher(keywords) if cut_chapters else (lambda t: False)
             chapters = postprocess.shift_chapters(chapters, keep, is_ad)
             new_len = postprocess.audio_length(path) or length
             cut_secs = max(0, length - new_len)
