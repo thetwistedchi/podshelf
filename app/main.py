@@ -53,9 +53,21 @@ async def lifespan(_app):
     yield
 
 
-def _retag_everything():
-    """One-time pass after an update that changes what is written into the files."""
-    log.info("updating tags of all downloaded episodes (one-time)")
+_retag_lock = threading.Lock()
+
+
+def _retag_everything(reason="one-time"):
+    """Apply naming, folders, tags and covers to every downloaded file."""
+    if not _retag_lock.acquire(blocking=False):
+        return  # already running
+    try:
+        _retag_all(reason)
+    finally:
+        _retag_lock.release()
+
+
+def _retag_all(reason):
+    log.info("updating tags of all downloaded episodes (%s)", reason)
     for r in db.query("SELECT id FROM podcasts"):
         try:
             downloader.retag_podcast(r["id"])
@@ -802,6 +814,17 @@ def _apply_settings(form):
         if k.endswith("_format") and not v:
             v = config.DEFAULT_SETTINGS[k]
         db.set_setting(k, v)
+
+
+@app.post("/settings/apply-naming")
+async def apply_naming(request: Request):
+    _apply_settings(await request.form())
+    if _retag_lock.locked():
+        flash(request, "Files are already being renamed and retagged, please wait until that is done.", "error")
+    else:
+        threading.Thread(target=_retag_everything, args=("naming changed",), daemon=True, name="retag-all").start()
+        flash(request, "Settings saved. All downloaded files are being renamed and retagged in the background.")
+    return back("/settings")
 
 
 @app.post("/sync/run")
