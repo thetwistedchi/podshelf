@@ -191,11 +191,21 @@ def tag_episode(ep, p=None, client=None):
 
 
 def _set_mtime(path, pub_date):
+    """File date = publish date. A few seconds are added that change on every retag:
+    media servers spot changed files by their modification time, and rewritten tags
+    often keep the file size, so an unchanged time would hide the change from them."""
     if not pub_date:
         return
     try:
         ts = datetime.fromisoformat(pub_date).timestamp()
-        os.utime(path, (ts, ts))
+        try:
+            prev = os.path.getmtime(path)
+        except OSError:
+            prev = None
+        offset = int(time.time()) % 59 + 1
+        if prev is not None and int(prev) == int(ts) + offset:
+            offset = offset % 59 + 1
+        os.utime(path, (ts + offset, ts + offset))
     except (ValueError, OSError):
         pass
 

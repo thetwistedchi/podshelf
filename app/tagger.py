@@ -1,6 +1,11 @@
 """Tags written so Plex (Music library) and Emby show one album per podcast,
 episodes sorted chronologically by track number, each with artwork and its
-release date."""
+release date.
+
+The release date goes into "release date" fields only (ID3 TDRL, MP4/Vorbis
+RELEASEDATE), never into the year/recording date (TDRC, ©day, DATE): Plex
+groups album tracks by year, so a per-episode year splits one podcast into
+several albums. The date is also the start of the file name."""
 import base64
 import logging
 import os
@@ -10,7 +15,7 @@ import mutagen
 from mutagen.flac import FLAC, Picture
 from mutagen.id3 import (ID3, APIC, COMM, TALB, TCON, TDRC, TDRL, TIT2, TPE1, TPE2, TRCK,
                          ID3NoHeaderError)
-from mutagen.mp4 import MP4, MP4Cover
+from mutagen.mp4 import MP4, MP4Cover, MP4FreeForm
 
 log = logging.getLogger("podshelf.tagger")
 _TAGS = re.compile(r"<[^>]+>")
@@ -26,7 +31,7 @@ def _mime(data: bytes) -> str:
 
 def tag_file(path: str, *, album: str, title: str, track: int, date: str | None,
              description: str = "", cover: bytes | None = None):
-    """date: release date as YYYY-MM-DD (always written when known)."""
+    """date: release date as YYYY-MM-DD (written to release-date fields when known)."""
     ext = os.path.splitext(path)[1].lower()
     if ext == ".mp3":
         _mp3(path, album, title, track, date, description, cover)
@@ -66,8 +71,7 @@ def _mp3(path, album, title, track, date, desc, cover):
     for fid in ("TDRC", "TYER", "TDAT", "TIME", "TORY", "TDOR", "TDRL"):
         t.delall(fid)
     if date:
-        t.add(TDRC(encoding=3, text=date))   # recording/release date, read by Plex, Emby and players
-        t.add(TDRL(encoding=3, text=date))   # release time
+        t.add(TDRL(encoding=3, text=date))   # release time; no TDRC (Plex would split albums by year)
     if desc:
         t.delall("COMM")
         t.add(COMM(encoding=3, lang="eng", desc="", text=_plain(desc)))
@@ -89,10 +93,12 @@ def _mp4(path, album, title, track, date, desc, cover):
     t["\xa9gen"] = ["Podcast"]
     for k in ("disk", "cpil", "soaa", "soal", "soar"):
         t.pop(k, None)
+    t.pop("\xa9day", None)  # Plex reads this as the year and would split albums
+    key = "----:com.apple.iTunes:RELEASEDATE"
     if date:
-        t["\xa9day"] = [date]
+        t[key] = [MP4FreeForm(date.encode())]
     else:
-        t.pop("\xa9day", None)
+        t.pop(key, None)
     if desc:
         t["desc"] = [_plain(desc, 250)]
     if cover:
@@ -111,10 +117,12 @@ def _vorbis_common(t, album, title, track, date):
     for k in ("discnumber", "compilation"):
         if k in t:
             del t[k]
+    if "date" in t:
+        del t["date"]  # Plex reads this as the year and would split albums
     if date:
-        t["date"] = date
-    elif "date" in t:
-        del t["date"]
+        t["releasedate"] = date
+    elif "releasedate" in t:
+        del t["releasedate"]
 
 
 def _picture(cover):
