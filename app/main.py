@@ -46,9 +46,23 @@ async def lifespan(_app):
     downloader.start()
     scheduler.start()
     sync.start()
+    if db.get_setting("tag_version") != config.TAG_VERSION:
+        threading.Thread(target=_retag_everything, daemon=True, name="retag-all").start()
     log.info("Podshelf started. Podcasts: %s, data: %s, login %s", config.PODCAST_DIR,
              config.DATA_DIR, "enabled" if config.ADMIN_PASSWORD else "disabled")
     yield
+
+
+def _retag_everything():
+    """One-time pass after an update that changes what is written into the files."""
+    log.info("updating tags of all downloaded episodes (one-time)")
+    for r in db.query("SELECT id FROM podcasts"):
+        try:
+            downloader.retag_podcast(r["id"])
+        except Exception as e:
+            log.warning("retag of podcast %s failed: %s", r["id"], e)
+    db.set_setting("tag_version", config.TAG_VERSION)
+    log.info("tags updated")
 
 
 app = FastAPI(title="Podshelf", docs_url=None, redoc_url=None, lifespan=lifespan)

@@ -38,7 +38,6 @@
       <label>Download window from <select name="window_start">{{ hours(s.window_start) }}</select><small>Automatic downloads only run in this time. Manual downloads always start.</small></label>
       <label>until <select name="window_end">{{ hours(s.window_end) }}</select><small>e.g. 1:00 until 7:00. Both "always" = no window.</small></label>
     </div>
-    <label class="check"><input type="checkbox" name="strip_date_tag" {% if s.strip_date_tag == '1' %}checked{% endif %}> Remove year/date tags <small class="muted">(prevents Plex from splitting one podcast into several albums)</small></label>
     <label class="check"><input type="checkbox" name="force_podcast_cover" {% if s.force_podcast_cover == '1' %}checked{% endif %}> Always embed the podcast cover <small class="muted">(instead of per-episode artwork)</small></label>
   </section>
 
