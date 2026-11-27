@@ -44,7 +44,8 @@
   <section class="card">
     <h2>Ad skipping</h2>
     {% if not ffmpeg %}<div class="flash error">ffmpeg is not installed in this container, ad skipping and m4a chapters are disabled.</div>{% endif %}
-    <label>Chapter titles that count as ads <input name="ad_keywords" value="{{ s.ad_keywords }}"><small>Comma separated, whole words, case doesn't matter. Turn ad skipping on per podcast (Settings → Ad skipping).</small></label>
+    <label class="check"><input type="checkbox" name="ad_chapters_all" {% if s.ad_chapters_all == '1' %}checked{% endif %}> Remove ad chapters for all podcasts <small class="muted">(applies to new downloads; otherwise turn it on per podcast)</small></label>
+    <label>Chapter titles that count as ads <input name="ad_keywords" value="{{ s.ad_keywords }}"><small>Comma separated, whole words, case doesn't matter. Cutting a fixed number of seconds at the start/end is set per podcast (podcast settings → Ad skipping).</small></label>
   </section>
 
   <section class="card" id="sync">
